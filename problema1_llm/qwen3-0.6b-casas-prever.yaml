@@ -1,0 +1,33 @@
+### Gera as previsoes do LLM ajustado para os 291 imoveis de teste
+### Rodar de dentro de problema1_llm/ depois do treino (ver README.md)
+
+### modelo
+model_name_or_path: Qwen/Qwen3-0.6B
+adapter_name_or_path: saidas/qwen3-0.6b-casas-lora
+trust_remote_code: true
+finetuning_type: lora
+
+### metodo
+stage: sft
+do_predict: true
+predict_with_generate: true
+do_sample: false
+max_new_tokens: 12
+
+### dados
+dataset_dir: dataset
+eval_dataset: casas_test
+template: qwen3_nothink
+cutoff_len: 768
+overwrite_cache: true
+preprocessing_num_workers: 1
+dataloader_num_workers: 0
+
+### saida
+output_dir: saidas/qwen3-0.6b-casas-previsoes
+overwrite_output_dir: true
+report_to: none
+
+### execucao
+per_device_eval_batch_size: 8
+bf16: true

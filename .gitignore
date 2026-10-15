@@ -18,3 +18,7 @@ venv/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Fine-tuning do LLM (pesos do LoRA e logs sao gerados localmente)
+problema1_llm/saidas/
+problema1_llm/*.log

@@ -1,0 +1,49 @@
+### LoRA 16-bit do Qwen3-0.6B prevendo SalePrice como texto (RTX 3050 8 GB)
+### Baseado no qwen3-0.6b-permits.yaml. Rodar de dentro de problema1_llm/ (ver README.md)
+
+### modelo
+model_name_or_path: Qwen/Qwen3-0.6B
+trust_remote_code: true
+
+### metodo
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_rank: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target: all
+
+### dados
+dataset_dir: dataset
+dataset: casas_train
+eval_dataset: casas_val
+template: qwen3_nothink
+cutoff_len: 768                # maior prompt ~600 tokens
+overwrite_cache: true
+preprocessing_num_workers: 1   # Windows: evita "Can't pickle local object"
+dataloader_num_workers: 0
+
+### saida
+output_dir: saidas/qwen3-0.6b-casas-lora
+logging_steps: 10
+save_steps: 1000
+plot_loss: true
+overwrite_output_dir: true
+save_only_model: true
+report_to: none
+
+### treino
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 8
+learning_rate: 2.0e-4
+num_train_epochs: 3.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+bf16: true
+gradient_checkpointing: true
+
+### avaliacao
+per_device_eval_batch_size: 2
+eval_strategy: steps
+eval_steps: 50
