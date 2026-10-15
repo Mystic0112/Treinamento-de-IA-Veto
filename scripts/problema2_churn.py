@@ -198,6 +198,18 @@ def executar_problema_2():
     print(f"  F1-Score : {f1_rf:.4f}")
     print(f"  ROC-AUC  : {auc_rf:.4f}")
     print("=" * 50)
+
+    # Efeito de baixar o limiar de decisao da Regressao Logistica (padrao = 0.50)
+    print("\nRegressao Logistica - Recall x Precisao por limiar de decisao:")
+    limiares = {}
+    for limiar in [0.50, 0.40, 0.35, 0.30, 0.25]:
+        pred_limiar = (y_prob_lr >= limiar).astype(int)
+        limiares[limiar] = {'recall': recall_score(y_test, pred_limiar),
+                            'precisao': precision_score(y_test, pred_limiar),
+                            'fp': int(((pred_limiar == 1) & (y_test == 0)).sum()),
+                            'fn': int(((pred_limiar == 0) & (y_test == 1)).sum())}
+        r = limiares[limiar]
+        print(f"  Limiar {limiar:.2f}: Recall {r['recall']*100:5.1f}% | Precisao {r['precisao']*100:5.1f}% | FP {r['fp']:3d} | FN {r['fn']:3d}")
     
     # 6. Matriz de Confusao Detalhada e Analise de Custos
     cm_lr = confusion_matrix(y_test, y_pred_lr)

@@ -1,5 +1,7 @@
 # Problema 1 — Modelo da Competição "O Preço Justo"
 
+**Integrantes:** Hélio Vinícius Lopes de Meneses (01780335), Yan Seligmann Soares Marques (01785213) e Antônio Augusto Costa de Souza Araújo (01705861)
+
 Este relatório complementa o [relatório principal](RELATORIO_TRABALHO_AV1_ML.md). Ele explica como o modelo de precificação foi melhorado para a competição (menor MAE nos 5 imóveis secretos) e documenta um experimento de *fine-tuning* de um LLM com o LlamaFactory.
 
 ## Resumo

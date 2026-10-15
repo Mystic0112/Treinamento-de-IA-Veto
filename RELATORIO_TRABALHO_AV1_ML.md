@@ -1,447 +1,323 @@
-# Relatorio Tecnico: Trabalho Pratico AV1 - Trilha de Machine Learning
+# Trabalho Prático AV1 — Trilha de Machine Learning
 
-**Instituicao de Ensino Superior | Disciplina: Machine Learning**  
-**Autor / Especialista:** Dado (Squad de Data Science e Machine Learning)  
-**Data:** Outubro de 2026  
-**Status:** Concluido com Exito | Reprodutibilidade Garantida (`random_state = 42`)  
-**Notebook Executavel:** [Trabalho_Pratico_AV1_ML.ipynb](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/Trabalho_Pratico_AV1_ML.ipynb)
+**Disciplina:** Machine Learning — Análise e Desenvolvimento de Sistemas (4º período)
 
----
+**Data:** outubro de 2026
 
-## Sumario Executivo
+**Integrantes:**
 
-O presente documento consolida a resolucao tecnica e analitica dos quatro problemas propostos no Trabalho Pratico da Avaliacao 1 (AV1) de Machine Learning. O escopo compreende o ciclo ponta a ponta da Ciencia de Dados: analise exploratoria, saneamento de dados com tratamento estatistico de valores ausentes, engenharia de atributos com fundamentacao em algebra linear, formulacao de modelos supervisionados (Regressao Linear e Classificacao Binaria) e nao supervisionados (Clusterizacao via K-Means), com validacao rigorosa de metricas de desempenho e interpretacao comercial acionavel.
+- Hélio Vinícius Lopes de Meneses — 01780335
+- Yan Seligmann Soares Marques — 01785213
+- Antônio Augusto Costa de Souza Araújo — 01705861
 
-### Sintese Geral dos Resultados
-
-| Problema | Paradigma | Dataset | Algoritmo | Principais Metricas | Conclusao Principal |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **1. O Preco Justo** | Supervisionado (Regressao) | Ames Housing (1.455 linhas) | Linear Regression & Ridge | $R^2 = 82.32\%$ (Baseline)<br>$R^2 = 84.85\%$ (Ridge)<br>$\text{MAE} = \$19,245.03$ | Qualidade geral (`OverallQual`), area util (`GrLivArea`) e garagens explicam mais de 84% do valor venal. |
-| **2. A Ameaca do Churn** | Supervisionado (Classificacao) | Telco Churn (7.043 linhas) | Regressao Logistica & Random Forest | $\text{ROC-AUC} = 0.8422$<br>$\text{Acuracia} = 80.62\%$<br>$\text{Recall Churn} = 55.88\%$ | Contratos mensais evadem 15.1x mais que contratos bianuais. Falso Negativo priorizado devido ao CAC elevado. |
-| **3. O Perfil do Consumidor** | Nao Supervisionado (Clusterizacao) | Mall Customers (200 linhas) | K-Means ($K=5$) com StandardScaler | $\text{Inercia} = 65.57$<br>$\text{Silhouette} = 0.5547$ | Identificacao nitida de 5 personas comerciais com planos de marketing direcionados. |
-| **4. A Playlist Perfeita** | Nao Supervisionado (Clusterizacao) | Spotify Tracks (114.000 linhas) | K-Means ($K=5$) com 9 atributos acusticos | Pearson $r = -0.7339$<br>5 Playlists Acusticas Coesas | Isolamento estrito de metadados nominais. Validacao qualitativa comprova harmonia auditiva das faixas agrupadas. |
+**Código:** notebook [`Trabalho_Pratico_AV1_ML.ipynb`](Trabalho_Pratico_AV1_ML.ipynb) e scripts em [`scripts/`](scripts/). Todos os resultados são reprodutíveis (`random_state = 42`).
 
 ---
 
-## PARTE 1: Aprendizado Supervisionado
+## Resumo dos resultados
 
-```mermaid
-flowchart TD
-    subgraph P1[Problema 1: Regressao Linear]
-        A1[Carga: Ames Housing 1455x81] --> B1[Analise de Correlacao Linear]
-        B1 --> C1[Tratamento: LotFrontage & BsmtQual]
-        C1 --> D1[Engenharia: Ordinal & One-Hot Encoding]
-        D1 --> E1[Split 80/20 & Treino OLS Baseline]
-        E1 --> F1[Otimizacao Ridge: R2 = 84.85% | MAE = $19,245]
-    end
-    subgraph P2[Problema 2: Classificacao Churn]
-        A2[Carga: Telco Churn 7043x21] --> B2[Diagnostico de Desbalanceamento]
-        B2 --> C2[Analise Contratual: Mensal vs Anual]
-        C2 --> D2[Tratamento: TotalCharges 11 brancos tenure=0]
-        D2 --> E2[Treino Estratificado: Logistic Regression & RF]
-        E2 --> F2[Matriz de Confusao & Analise de Custos FN vs FP]
-    end
-```
+| Problema | Tipo | Dataset | Algoritmo | Principais resultados |
+| --- | --- | --- | --- | --- |
+| 1. O Preço Justo | Regressão | Ames Housing (1.455 imóveis) | Regressão Linear; Ridge + Gradient Boosting para a competição | R² baseline = 0,823; modelo da competição: MAE = US$ 11.773 |
+| 2. A Ameaça do Churn | Classificação | Telco Churn (7.043 clientes) | Regressão Logística e Random Forest | ROC-AUC = 0,842; recall do churn = 55,9% (75,7% com limiar 0,30) |
+| 3. O Perfil do Consumidor | Clusterização | Mall Customers (200 clientes) | K-Means (K = 5) | Silhueta = 0,555; 5 perfis de cliente |
+| 4. A Playlist Perfeita | Clusterização | Spotify Tracks (89.740 faixas únicas) | K-Means (K = 5) | r(energy, acousticness) = −0,73; 5 playlists coerentes com os gêneros |
 
 ---
 
-## Problema 1: Regressao Linear - "O Preco Justo"
+# PARTE 1 — Aprendizado Supervisionado
 
-### 1.1 Contexto e Regras da Competicao
-Uma imobiliaria contratou nossa equipe de cientistas de dados para construir um modelo preditivo capaz de avaliar e precificar imoveis automaticamente. A base disponibilizada contem 1.455 imoveis (apos a extracao de 5 registros 'secretos' da competicao). O objetivo competitivo e atingir o menor **Erro Absoluto Medio (MAE)** nos 5 imoveis de teste final.
+## Problema 1: Regressão Linear — "O Preço Justo"
 
-$$\text{MAE} = \frac{1}{n} \sum_{i=1}^n |y_i - \hat{y}_i|$$
+A base recebida tem 1.455 imóveis e 81 colunas (os 5 imóveis "secretos" da competição já foram retirados). O alvo é `SalePrice`, o preço de venda em dólares.
 
-### 1.2 Analise Exploratoria: Identificacao dos Top 3 Preditores Lineares
-Calculamos o Coeficiente de Correlacao Linear de Pearson ($r$) entre todas as variaveis numericas e a variavel alvo `SalePrice`:
+### 1.1 Análise exploratória: as 3 variáveis mais correlacionadas com o preço
 
-$$r_{X, Y} = \frac{\sum_{i=1}^n (X_i - \bar{X})(Y_i - \bar{Y})}{\sqrt{\sum_{i=1}^n (X_i - \bar{X})^2 \sum_{i=1}^n (Y_i - \bar{Y})^2}}$$
+Calculamos a correlação de Pearson (*r*) entre cada variável numérica e `SalePrice`. Quanto mais perto de 1, mais forte a relação linear positiva.
 
-#### Tabela 1: Variaveis com Maior Correlacao Linear Positiva com `SalePrice`
+| Posição | Variável | r | O que é |
+| :---: | --- | :---: | --- |
+| **1** | `OverallQual` | **0,792** | Qualidade geral do acabamento e dos materiais (nota de 1 a 10) |
+| **2** | `GrLivArea` | **0,701** | Área útil acima do nível do solo (pés²) |
+| **3** | `GarageCars` | **0,643** | Capacidade da garagem (número de carros) |
+| 4 | `GarageArea` | 0,627 | Área da garagem (pés²) |
+| 5 | `TotalBsmtSF` | 0,604 | Área do porão (pés²) |
+| 6 | `1stFlrSF` | 0,598 | Área do primeiro andar (pés²) |
+| 7 | `FullBath` | 0,561 | Banheiros completos |
+| 8 | `TotRmsAbvGrd` | 0,530 | Total de cômodos (sem banheiros) |
+| 9 | `YearBuilt` | 0,528 | Ano de construção |
+| 10 | `YearRemodAdd` | 0,515 | Ano da última reforma |
 
-| Posicao | Variavel | Coeficiente de Pearson ($r$) | Descricao do Atributo |
-| :---: | :--- | :---: | :--- |
-| **1** | `OverallQual` | **+0.7918** | Avaliacao geral do acabamento e materiais do imovel (escala de 1 a 10). |
-| **2** | `GrLivArea` | **+0.7012** | Area habitavel construida acima do nivel do solo (em pes quadrados). |
-| **3** | `GarageCars` | **+0.6430** | Capacidade da garagem em numero de veiculos abrigados. |
-| 4 | `GarageArea` | +0.6272 | Area total construida da garagem (em pes quadrados). |
-| 5 | `TotalBsmtSF` | +0.6040 | Area total do subsolo/porao (em pes quadrados). |
-| 6 | `1stFlrSF` | +0.5980 | Area util do primeiro pavimento (em pes quadrados). |
-| 7 | `FullBath` | +0.5605 | Quantidade de banheiros completos acima do solo. |
-| 8 | `TotRmsAbvGrd` | +0.5302 | Total de comodos da casa (excluindo banheiros). |
-| 9 | `YearBuilt` | +0.5276 | Ano original de construcao da edificacao. |
-| 10 | `YearRemodAdd` | +0.5152 | Ano da ultima grande reforma/remodelacao. |
+As três variáveis com maior correlação positiva são **`OverallQual`**, **`GrLivArea`** e **`GarageCars`**.
 
-As 3 variaveis com maior correlacao linear positiva sao: **`OverallQual`** ($r = 0.7918$), **`GrLivArea`** ($r = 0.7012$) e **`GarageCars`** ($r = 0.6430$).
+![Matriz de correlação](outputs/p1_correlacoes_heatmap.png)
 
-![Heatmap de Correlacoes](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p1_correlacoes_heatmap.png)
-*Figura 1: Matriz de correlacao linear de Pearson das 10 variaveis mais fortemente correlacionadas com `SalePrice`.*
+![Dispersão das 3 principais variáveis](outputs/p1_scatter_top3.png)
 
-![Scatter Plots Top 3 Preditores](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p1_scatter_top3.png)
-*Figura 2: Graficos de dispersao com reta de regressao linear para os 3 principais preditores (`OverallQual`, `GrLivArea` e `GarageCars`).*
+Observação: `GarageCars` e `GarageArea` medem praticamente a mesma coisa (correlação alta entre si). Num modelo linear, usar as duas juntas divide o efeito entre elas e deixa os coeficientes instáveis.
 
----
+### 1.2 Tratamento de valores nulos
 
-### 1.3 Tratamento de Valores Ausentes (Missing Values)
+**Coluna numérica — `LotFrontage`** (largura da frente do terreno): 259 nulos (17,8%).
 
-O dataset possui atributos com dados faltantes que exigem tratamento previo a modelagem. Conforme solicitado, selecionamos uma coluna numerica e uma categorica:
+- **Tratamento:** preenchemos com a **mediana do bairro** (`Neighborhood`) do imóvel.
+- **Justificativa:** o tamanho da frente do terreno depende muito do loteamento, e imóveis do mesmo bairro tendem a ter terrenos parecidos. A mediana foi escolhida em vez da média porque é menos afetada por terrenos muito grandes. Apagar as linhas jogaria fora quase 18% da base.
 
-#### 1. Coluna Numerica: `LotFrontage` (Comprimento da Fachada / Testada do Lote)
-- **Diagnostico:** Apresenta 259 valores ausentes (17.80% da base).
-- **Tratamento Adotado:** Imputacao pela **mediana condicional agrupada por bairro (`Neighborhood`)**.
-- **Justificativa Estatistica e de Negocio:** O tamanho da testada de um terreno residencial em uma cidade e determinado pelo zoneamento e pelas dimensoes padronizadas dos loteamentos de cada vizinhanca. Imoveis em bairros densos tem testadas menores e homogeneas, enquanto bairros nobres possuem frentes amplas. Ademais, optou-se pela mediana em vez da media aritmetica devido a assimetria positiva tipica de variaveis espaciais/imobiliarias, protegendo o estimador contra a influencia de terrenos atipicos (outliers).
+**Coluna categórica — `BsmtQual`** (qualidade do porão): 37 nulos (2,5%).
 
-#### 2. Coluna Categorica: `BsmtQual` (Altura e Qualidade do Pe-Direito do Porao)
-- **Diagnostico:** Apresenta 37 valores nulos (2.54% da base).
-- **Tratamento Adotado:** Preenchimento com uma categoria explicita `'None'` ("Sem Porao").
-- **Justificativa Estatistica e de Negocio:** De acordo com o codebook oficial do Ames Housing Dataset, a ausencia de valor em atributos de porao nao decorre de uma falha aleatoria de coleta (Missing Completely at Random - MCAR), mas sim de **Missingness Estrutural (Missing Not at Random - MNAR)**: o imovel simplesmente nao possui porao. Excluir essas linhas eliminaria imoveis validos da base; imputar a moda (categoria mais comum, `Gd` ou `TA`) inventaria artificialmente um porao inexistente, distorcendo o preco venal. A criacao da classe `'None'` preserva a realidade fisica da edificacao.
+- **Tratamento:** preenchemos com a categoria **`'None'`** (sem porão).
+- **Justificativa:** pela documentação do dataset, o valor vazio nessa coluna significa que o imóvel **não tem porão** — não é um dado perdido. Preencher com a moda (ex.: `TA`) inventaria um porão que não existe, e apagar as linhas eliminaria imóveis válidos.
 
----
+### 1.3 Engenharia de atributos
 
-### 1.4 Engenharia de Atributos: Codificacao Categorica
+Transformamos duas variáveis categóricas em numéricas:
 
-Transformamos duas variaveis categoricas essenciais em representacoes numericas:
-1. **`BsmtQual` via Mapeamento Ordinal (Ordinal Encoding):** Como ha uma clara hierarquia de qualidade tecnica, atribuimos valores inteiros monotonicamente crescentes:
-   $$\text{Ex (Excelente)} \rightarrow 5, \quad \text{Gd (Bom)} \rightarrow 4, \quad \text{TA (Medio)} \rightarrow 3, \quad \text{Fa (Fraco)} \rightarrow 2, \quad \text{Po (Ruim)} \rightarrow 1, \quad \text{None (Sem Porao)} \rightarrow 0$$
-2. **`Neighborhood` via Codificacao One-Hot (Dummies):** Bairros sao classes puramente nominais sem relacao de magnitude intrinseca. Aplicamos `pd.get_dummies(..., drop_first=True)` para criar variaveis binarias $D_j \in \{0, 1\}$, descartando a primeira categoria para impedir armadilha de multicolinearidade estrita (*dummy variable trap*).
+1. **`BsmtQual` → codificação ordinal.** As categorias têm uma ordem natural de qualidade, então viraram números em ordem: `Ex` = 5, `Gd` = 4, `TA` = 3, `Fa` = 2, `Po` = 1, `None` = 0.
+2. **`Neighborhood` → One-Hot Encoding.** Bairros não têm ordem (nenhum bairro é "maior" que outro), então cada bairro virou uma coluna 0/1 com `pd.get_dummies(..., drop_first=True)`. Uma das colunas é descartada porque ela pode ser deduzida das outras, o que atrapalharia o cálculo dos coeficientes.
 
-#### Por que o Modelo de Regressao Linear Exige essa Conversao?
-A Regressao Linear Multipla baseia-se na hipotese fundamental de que a resposta $y \in \mathbb{R}$ e gerada por uma combinacao linear ponderada dos atributos:
+**Por que a Regressão Linear exige essa conversão?** O modelo calcula o preço como uma soma ponderada das variáveis:
 
-$$y_i = \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \dots + \beta_p x_{ip} + \epsilon_i$$
+`preço = b0 + b1 × variável1 + b2 × variável2 + ...`
 
-Sob a notacao matricial:
+Essa conta só funciona com números: não existe "0,3 × `'CollgCr'`". Por isso, todo texto precisa virar número antes do treino. E a forma de converter importa: se os bairros virassem 1, 2, 3…, o modelo entenderia que o bairro 3 vale "três vezes" o bairro 1, uma ordem que não existe. Por isso usamos One-Hot para bairros e codificação ordinal só onde existe ordem de verdade.
 
-$$Y = X\beta + \epsilon$$
+### 1.4 Treino e baseline
 
-O estimador de Minimos Quadrados Ordinarios (OLS) encontra os parametros otimos minimizando a soma dos residuos quadraticos ($S(\beta) = \|Y - X\beta\|^2$), cuja solucao analitica fechada (equacao normal) e:
+Dividimos os dados em 80% para treino (1.164 imóveis) e 20% para teste (291 imóveis). O baseline é uma Regressão Linear múltipla com 10 variáveis (`OverallQual`, `GrLivArea`, `GarageCars`, `GarageArea`, `TotalBsmtSF`, `1stFlrSF`, `FullBath`, `YearBuilt`, `LotFrontage` e `BsmtQual` codificada), sem nenhum ajuste.
 
-$$\hat{\beta} = (X^T X)^{-1} X^T Y$$
+| Métrica | Baseline (Regressão Linear) | Ridge + bairros |
+| --- | :---: | :---: |
+| R² no treino | 0,765 | 0,821 |
+| **R² no teste** | **0,823** | **0,849** |
+| MAE no teste | US$ 21.888 | US$ 19.245 |
+| RMSE no teste | US$ 29.066 | US$ 26.909 |
 
-A matriz de planejamento $X \in \mathbb{R}^{n \times (p+1)}$ deve necessariamente residir no espaco vetorial dos numeros reais $\mathbb{R}$. Strings e rotulos textuais (ex: `'CollgCr'`, `'Veenker'`) nao possuem estrutura algebrica: nao admitem operacoes de adicao vetorial, multiplicacao por escalar nem produto interno euclidiano $\langle x_i, \beta \rangle$. A codificacao numerica e requisito matematico mandatorio para viabilizar o calculo da inversa $(X^T X)^{-1}$ e a projecao ortogonal no hiperplano de regressao.
+**O que o R² de 0,823 significa para a imobiliária?** O modelo consegue explicar **cerca de 82% da variação dos preços** dos imóveis de teste usando apenas aquelas 10 características. Na prática, ele separa bem casas baratas de caras e acerta a faixa de preço, mas ainda erra em média US$ 21,9 mil por imóvel. Os 18% restantes vêm de informações que ficaram fora do modelo (o dataset tem mais de 70 outras colunas), de relações que não são lineares e de fatores que não estão na base, como a negociação entre comprador e vendedor.
 
----
+O R² no teste ficou maior que no treino. Isso acontece por acaso na divisão: o conjunto de treino ficou com alguns imóveis atípicos, mais difíceis de prever.
 
-### 1.5 Treinamento, Metricas do Baseline e Modelo Otimizado
+![Valores reais vs. previstos e resíduos](outputs/p1_residuos_dispersao.png)
 
-Dividimos o dataset em 80% para treino (1.164 imoveis) e 20% para teste (291 imoveis), fixando a semente `random_state = 42`.
+### 1.5 Modelo da competição
 
-#### Tabela 2: Comparativo de Desempenho dos Modelos de Regressao
+Para a competição (menor MAE nos 5 imóveis secretos), o professor liberou o uso de modelos prontos com ajuste fino. Usamos **todas as colunas**, criamos variáveis novas, passamos a prever o **logaritmo do preço** e ajustamos os hiperparâmetros de uma **Ridge** e de um **Gradient Boosting** com validação cruzada. A média dos dois modelos reduziu o erro para **MAE = US$ 11.773** (R² = 0,930), 39% abaixo da Ridge com bairros.
 
-| Metrica de Avaliacao | Formula Matematica | Modelo Baseline (Linear OLS) | Modelo Refinado (Ridge + Bairros) | Variacao / Ganho |
-| :--- | :---: | :---: | :---: | :---: |
-| **$R^2$ no Treino** | $1 - \frac{SS_{res}}{SS_{tot}}$ | $0.7647$ ($76.47\%$) | $0.8210$ ($82.10\%$) | $+5.63\%$ |
-| **$R^2$ no Teste** | $1 - \frac{SS_{res}}{SS_{tot}}$ | **$0.8232$ ($82.32\%$)** | **$0.8485$ ($84.85\%$)** | **$+2.53\%$** |
-| **MAE no Teste** | $\frac{1}{n}\sum |y - \hat{y}|$ | **$\$21,888.03$** | **$\$19,245.03$** | **$-\$2,643.00$** |
-| **RMSE no Teste** | $\sqrt{\frac{1}{n}\sum (y - \hat{y})^2}$ | $\$29,065.89$ | $\$26,909.47$ | $-\$2,156.42$ |
+Também testamos o fine-tuning de um LLM (Qwen3-0.6B com LoRA no LlamaFactory), que ficou bem pior (MAE = US$ 30.757).
 
-#### O que o $R^2 = 82.32\%$ Significa para a Imobiliaria?
-O Coeficiente de Determinacao ($R^2$) mede a proporcao da variancia total observada na variavel dependente (`SalePrice`) que e matematicamente explicada pela combinacao linear dos atributos selecionados no modelo:
-
-$$R^2 = 1 - \frac{\sum_{i=1}^n (y_i - \hat{y}_i)^2}{\sum_{i=1}^n (y_i - \bar{y})^2}$$
-
-Para a diretoria da imobiliaria, o resultado de **$82.32\%$** comprova que o algoritmo e altamente fidedigno e consistente: mais de quatro quintos de toda a oscilacao de precos do mercado imobiliario local derivam diretamente de caracteristicas tecnicas objetivas do imovel (como qualidade de acabamento, metragem util, vagas de garagem e conservacao do porao). Apenas $17.68\%$ da variabilidade decorre de fatores nao mensurados (como pressa do vendedor, estado emocional do comprador ou variacoes microeconomicas sazonais).
-
-No modelo refinado com **Ridge Regression** e inclusao de variaveis de localizacao espacial, o $R^2$ subiu para **$84.85\%$** e o **MAE reduziu para $\$19,245.03$**, conferindo vantagem competitiva para a equipe na precificacao dos 5 imoveis secretos.
-
-![Residuos e Dispersao Real vs Predito](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p1_residuos_dispersao.png)
-*Figura 3: Diagnostico de residuos: (Esquerda) Precos reais vs preditos com proximidade a reta de identidade $y = x$; (Direita) Dispersao de residuos com media proxima de zero e homoscedasticidade satisfatoria.*
+Os detalhes estão no relatório [**RELATORIO_PROBLEMA1_COMPETICAO.md**](RELATORIO_PROBLEMA1_COMPETICAO.md).
 
 ---
 
-## Problema 2: Classificacao - "A Ameaca do Churn"
+## Problema 2: Classificação — "A Ameaça do Churn"
 
-### 2.1 Compreensao do Negocio e Analise da Variavel Alvo
+### 2.1 Variável alvo e desbalanceamento
 
-No contexto de telecomunicacoes, a evasao de clientes (`Churn`) gera perda direta de receita recorrente. A variavel dependente alvo do dataset e:
-- **`Churn`:** Binaria (`Yes` = Cliente cancelou o servico; `No` = Cliente permanece ativo).
+A variável alvo é **`Churn`**: `Yes` se o cliente cancelou o serviço e `No` se continua.
 
-#### Diagnostico de Desbalanceamento de Classes
-- **Total de Amostras:** 7.043 clientes.
-- **Clientes Retidos (`No`):** 5.174 registros (**$73.46\%$**).
-- **Clientes que Cancelaram (`Yes`):** 1.869 registros (**$26.54\%$**).
-- **Grau de Desbalanceamento:** Razao de **2.77 para 1** (para cada cliente que sai, quase 3 permanecem).
+| Classe | Clientes | Proporção |
+| --- | :---: | :---: |
+| Ficaram (`No`) | 5.174 | 73,5% |
+| Cancelaram (`Yes`) | 1.869 | 26,5% |
 
-![Distribuicao da Variavel Churn](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p2_distribuicao_churn.png)
-*Figura 4: Diagnostico do desbalanceamento da variavel alvo `Churn`.*
+**Sim, o dataset é desbalanceado:** para cada cliente que sai, cerca de 2,8 ficam. Por isso a acurácia sozinha engana: um "modelo" que sempre responde "não vai cancelar" acerta 73,5% sem identificar nenhum cancelamento. Avaliamos também **recall**, **precisão**, **F1** e **ROC-AUC** da classe `Yes`.
 
-**Implicacao Metodologica:** Devido ao desbalanceamento, a metrica de **Acuracia** nao e suficiente isoladamente. Um classificador trivial que atribua a todos os clientes a classe majoritaria (`No`) alcancaria $73.46\%$ de acuracia nominal sem prever um unico cancelamento real. Por essa razao, o modelo deve ser avaliado com enfase em **Recall (Sensibilidade)**, **Precision**, **F1-Score** e a area sob a curva ROC (**ROC-AUC**).
+![Distribuição do churn](outputs/p2_distribuicao_churn.png)
 
----
+### 2.2 Análise de risco: tipo de contrato
 
-### 2.2 Analise de Risco Contratual: Contratos Mensais vs Anuais
+| Contrato | Clientes | Cancelaram | Taxa de churn |
+| --- | :---: | :---: | :---: |
+| **Mensal (Month-to-month)** | 3.875 | 1.655 | **42,7%** |
+| Anual (One year) | 1.473 | 166 | 11,3% |
+| Bienal (Two year) | 1.695 | 48 | 2,8% |
 
-Investigamos o impacto do tipo de faturamento contratual (`Contract`) sobre a probabilidade de desligamento:
+**Clientes com contrato mensal cancelam muito mais:** a taxa de 42,7% é quase 4 vezes a do contrato anual e cerca de 15 vezes a do bienal. Faz sentido: quem não tem fidelidade pode sair a qualquer momento, sem multa.
 
-#### Tabela 3: Cruzamento entre Tipo de Contrato e Evasao de Clientes
+![Churn por tipo de contrato](outputs/p2_churn_por_contrato.png)
 
-| Tipo de Contrato | Clientes Totais | Ficaram (`No`) | Cancelaram (`Yes`) | Taxa de Evasao (%) | Fator de Risco Relativo |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Month-to-month (Mensal)** | 3.875 | 2.220 | 1.655 | **$42.71\%$** | **$15.1 \times$** superior ao bienal |
-| **One year (1 Ano)** | 1.473 | 1.307 | 166 | **$11.27\%$** | $4.0 \times$ superior ao bienal |
-| **Two year (2 Anos)** | 1.695 | 1.647 | 48 | **$2.83\%$** | Referencia base de fidelidade |
+### 2.3 Tratamento da coluna `TotalCharges`
 
-![Analise de Churn por Contrato](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p2_churn_por_contrato.png)
-*Figura 5: Analise comparativa de evasao: clientes em contrato mensal apresentam taxa de churn de 42.71%, contra apenas 2.83% em contratos de 2 anos.*
+- **Problema:** a coluna foi lida como texto, porque **11 linhas têm apenas um espaço em branco** no lugar do valor.
+- **Investigação:** os 11 clientes têm `tenure = 0`, ou seja, acabaram de entrar e ainda não receberam a primeira cobrança.
+- **Tratamento:** convertemos a coluna para número com `pd.to_numeric(..., errors='coerce')` (os espaços viram nulos) e preenchemos esses nulos com **0**, que é o valor real cobrado até agora. Assim os 11 clientes continuam na base.
 
-**Conclusao do Risco:** Clientes no modelo mensal cancelam quase 4 vezes mais que os contratantes de 1 ano e mais de **15 vezes mais** que os clientes vinculados a planos de 2 anos. O contrato mensal confere custo de troca nulo ao consumidor, tornando o tipo de contrato o preditor de maior relevancia operacional para acoes de retencao.
+Também removemos `customerID` (é só um identificador) e aplicamos One-Hot Encoding nas 15 colunas categóricas.
 
----
+### 2.4 Treino e matriz de confusão
 
-### 2.3 Preparacao dos Dados e Diagnostico da Coluna `TotalCharges`
+Dividimos os dados em 80% treino (5.634) e 20% teste (1.409), **estratificado** para manter a proporção de churn nos dois conjuntos. Treinamos dois modelos:
 
-- **Problema Detectado:** A coluna `TotalCharges` foi importada como string/object. Ao inspecionar os caracteres, identificamos **11 registros contendo exclusivamente espacos em branco (`' '`)**.
-- **Analise Investigativa:** Ao cruzar esses 11 registros com a variavel `tenure` (tempo de permanencia do cliente), constatou-se que **todos os 11 clientes possuem `tenure == 0`**.
-- **Interpretacao e Tratamento:** Tratam-se de clientes recem-contratados no primeiro mes de vigencia contratual, cujo ciclo inaugural de faturamento ainda nao foi fechado. Portanto, nao ha inadimplencia nem erro de digitacao aleatorio. A solucao correta foi converter a coluna para numerica via `pd.to_numeric(..., errors='coerce')` e imputar o valor **`0.0`**, preservando todos os 11 clientes na amostra.
-- **Pre-processamento Complementar:** Removemos o identificador nominal `customerID` e convertemos todas as 15 variaveis categoricas via One-Hot Encoding (`drop_first=True`).
+| Modelo | Acurácia | Precisão (churn) | Recall (churn) | F1 (churn) | ROC-AUC |
+| --- | :---: | :---: | :---: | :---: | :---: |
+| **Regressão Logística** | **80,6%** | 65,9% | **55,9%** | **0,605** | 0,842 |
+| Random Forest | 80,0% | 66,6% | 49,5% | 0,568 | 0,844 |
 
----
+A Regressão Logística foi escolhida por ter recall e F1 maiores com AUC praticamente igual. Matriz de confusão no teste:
 
-### 2.4 Treinamento Supervisionado e Avaliacao dos Classificadores
+| | Previsto: fica | Previsto: cancela |
+| --- | :---: | :---: |
+| **Real: fica** | 927 (VN) | 108 (FP) |
+| **Real: cancela** | 165 (FN) | 209 (VP) |
 
-Dividimos a base em 80% treino (5.634 amostras) e 20% teste (1.409 amostras) com estratificacao (`stratify=y`). Treinamos a **Regressao Logistica** (com `StandardScaler` nos atributos continuos) e o classificador **Random Forest**.
+![Matrizes de confusão](outputs/p2_matriz_confusao.png)
 
-#### Tabela 4: Desempenho dos Classificadores no Conjunto de Teste
+![Curva ROC](outputs/p2_curva_roc.png)
 
-| Modelo Classificador | Acuracia Global | Precisao (Churn) | Recall (Churn) | F1-Score (Churn) | ROC-AUC |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Regressao Logistica** | **$80.62\%$** | $65.93\%$ | **$55.88\%$** | **$0.6049$** | **$0.8422$** |
-| **Random Forest** | $79.99\%$ | **$66.55\%$** | $49.47\%$ | $0.5675$ | $0.8442$ |
+### 2.5 O que é pior: falso positivo ou falso negativo?
 
-![Curva ROC Comparativa](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p2_curva_roc.png)
-*Figura 6: Curva ROC dos classificadores: Regressao Logistica (AUC = 0.842) e Random Forest (AUC = 0.844).*
+**O falso negativo é pior para esta empresa.**
 
----
+- **Falso positivo** (108 clientes): o modelo diz que o cliente vai cancelar, mas ele ia ficar. A empresa dá um desconto que não precisava. O custo é o valor do desconto, que é limitado e conhecido.
+- **Falso negativo** (165 clientes): o modelo diz que o cliente vai ficar, mas ele cancela. Nenhuma ação é tomada e a empresa **perde toda a receita futura desse cliente**. Além disso, conquistar um cliente novo para repor costuma custar mais caro do que manter um atual.
 
-### 2.5 Matriz de Confusao e Analise de Custos de Negocio: Falso Positivo vs Falso Negativo
+Por isso, vale a pena **baixar o limiar de decisão** do modelo (o padrão é 0,50), aceitando mais falsos positivos para perder menos clientes:
 
-A matriz de confusao da Regressao Logistica no conjunto de teste registrou:
-- **Verdadeiros Negativos (TN):** 927 clientes fieis previstos corretamente ($65.8\%$).
-- **Falsos Positivos (FP):** 108 clientes fieis previstos erroneamente como churn ($7.7\%$).
-- **Falsos Negativos (FN):** 165 clientes em evasao nao detectados pelo modelo ($11.7\%$).
-- **Verdadeiros Positivos (TP):** 209 clientes em evasao detectados a tempo ($14.8\%$).
-
-![Matriz de Confusao](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p2_matriz_confusao.png)
-*Figura 7: Matriz de Confusao da Regressao Logistica e Random Forest nos dados de teste.*
-
-#### No Contexto Desta Empresa, o que e Pior: Falso Positivo ou Falso Negativo?
-
-O erro de **Falso Negativo (FN)** e dramaticamente pior e mais oneroso para a operadora de telecomunicacoes:
-
-1. **Impacto do Falso Negativo (FN = 165 clientes perdidos):**
-   - O algoritmo prevê que o cliente esta satisfeito e nao cancelara o servico.
-   - Nenhuma acao preventiva e deflagrada pelo time de retencao.
-   - O cliente cancela o contrato e migra para o concorrente.
-   - **Prejuizo Financeiro Direto:** Perda integral do valor do ciclo de vida do cliente (**Lifetime Value - LTV**), que acumula mensalidades por anos. Alem disso, de acordo com estudos classicos de gestao de telecomunicacoes, o **Custo de Aquisicao de Clientes (CAC)** e de **5 a 7 vezes mais caro** do que o custo de retencao de um cliente existente.
-2. **Impacto do Falso Positivo (FP = 108 clientes com oferta desnecessaria):**
-   - O algoritmo preve que o cliente cancelara, embora ele nao tivesse intencao imediata de sair.
-   - A empresa aborda o cliente e concede um beneficio (ex: desconto de R$ 15 na mensalidade por 3 meses ou upgrade temporario).
-   - **Prejuizo Financeiro:** Apenas o custo marginal do desconto concedido. Como efeito colateral virtuoso, a intervencao eleva a percepcao de valor e reforca a lealdade de um consumidor que ja era fiel.
-
-**Recomendacao Estrategica da Squad:** A empresa deve calibrar o limiar de decisao (*threshold*) do modelo logistico de $0.50$ para aproximadamente $0.35$ ou $0.40$, elevando a taxa de **Recall** para acima de $75\%$, aceitando conscientemente uma quantidade discretamente maior de Falsos Positivos para blindar a carteira contra evasao irreparavel.
-
----
-
-## PARTE 2: Aprendizado Nao Supervisionado
-
-```mermaid
-flowchart TD
-    subgraph P3[Problema 3: Perfil do Consumidor]
-        A3[Mall Customers: Renda & Gasto] --> B3[Padronizacao Z-score: StandardScaler]
-        B3 --> C3[Metodo do Cotovelo: K=1 a 10 & Silhueta]
-        C3 --> D3[K Ideal = 5: Inercia 65.57 | Silhouette 0.5547]
-        D3 --> E3[Rotulacao Comercial de 5 Perfis de Negocio]
-    end
-    subgraph P4[Problema 4: Playlists Spotify]
-        A4[Spotify 114k musicas] --> B4[Isolamento de Metadados Textuais]
-        B4 --> C4[Correlacao Acustica: Energy vs Acousticness r = -0.7339]
-        C4 --> D4[K-Means K=5 sobre 9 Atributos Continuos]
-        D4 --> E4[Prova de Fogo: 5 Faixas Acusticas com Coesao Auditiva]
-    end
-```
-
----
-
-## Problema 3: Clusterizacao - "O Perfil do Consumidor"
-
-### 3.1 Justificativa Matematica do Escalonamento (StandardScaler)
-
-O algoritmo K-Means particiona os $N$ dados em $K$ grupos minimizando a soma das distancias euclidianas quadraticas intra-cluster (Inercia / WCSS):
-
-$$J = \sum_{k=1}^K \sum_{x_i \in C_k} \|x_i - \mu_k\|^2 = \sum_{k=1}^K \sum_{x_i \in C_k} \sum_{j=1}^p (x_{ij} - \mu_{kj})^2$$
-
-No espaco vetorial de `Mall_Customers`:
-- A variavel `Annual Income` varia de $\$15.000$ a $\$137.000$ (desvio padrao $\sigma_1 = 26.26$).
-- A variavel `Spending Score` varia de $1$ a $99$ (desvio padrao $\sigma_2 = 25.82$).
-- Caso utilizassemos a renda bruta em dolares integrais (escala de dezenas de milhares), a diferenca quadratica $(\Delta x_{\text{Renda}})^2$ assumiria valores da ordem de $10^7$ a $10^8$, enquanto o score de gastos produziria diferencas na ordem de $10^2$ a $10^3$.
-
-Sem a devida padronizacao, o termo de maior magnitude dominaria $99.9\%$ do calculo da distancia euclidiana, anulando a contribuicao da pontuacao de gastos e gerando clusters alongados e enviesados.
-- **Solucao Adotada:** Aplicamos o `StandardScaler` (padronizacao por Z-Score), transformando cada variavel:
-  $$z = \frac{x - \mu}{\sigma}$$
-  Dessa forma, ambos os atributos passam a ter media nula ($\mu = 0$) e variancia unitaria ($\sigma^2 = 1$), conferindo peso geometrico equivalente a ambos os eixos no espaco euclidiano bidimensional.
-
----
-
-### 3.2 O Dilema da Quantidade: Metodo do Cotovelo e Coeficiente de Silhueta
-
-Executamos o K-Means variando o hiperparametro $K$ de 1 a 10 com a inicializacao inteligente `k-means++` e semente fixa (`random_state=42`).
-
-#### Tabela 5: Evolucao da Inercia (WCSS) e Silhouette Score por Quantidade de Grupos ($K$)
-
-| $K$ | Inercia Intra-Cluster (WCSS) | Coeficiente de Silhueta Medio | Diagnostico Tecnico |
-| :---: | :---: | :---: | :--- |
-| 1 | $400.00$ | N/A | Grupo unico (ausencia de particionamento). |
-| 2 | $269.69$ | $0.3213$ | Particionamento excessivamente generico. |
-| 3 | $157.70$ | $0.4666$ | Separacao intermediaria. |
-| 4 | $108.92$ | $0.4939$ | Bom agrupamento, mas ainda agrega perfis distintos. |
-| **5** | **$65.57$** | **$0.5547$** | **Ponto de Inflexao Otimo (Cotovelo) & Pico Maximo de Silhueta.** |
-| 6 | $55.06$ | $0.5399$ | Queda na coesao da silhueta; ganho marginal de inercia reduzido. |
-| 7 | $44.86$ | $0.5281$ | Fragmentacao progressiva dos clusters. |
-| 8 | $37.23$ | $0.4552$ | Queda expressiva de silhueta. |
-| 9 | $32.39$ | $0.4571$ | Subdivisao artificial. |
-| 10 | $29.98$ | $0.4432$ | Sobreajuste (overclustering). |
-
-![Metodo do Cotovelo e Silhueta](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p3_elbow_silhouette.png)
-*Figura 8: (Esquerda) Curva do Cotovelo evidenciando inflexao em K = 5; (Direita) Coeficiente de Silhueta confirmando o pico maximo global em K = 5 (score = 0.5547).*
-
-#### Justificativa da Escolha de $K = 5$:
-1. **Analise do Cotovelo:** A curva de inercia decresce acentuadamente de $K=1$ ($400.00$) ate $K=5$ ($65.57$), ponto no qual a reta muda de curvatura. A partir de $K=6$, a reducao de inercia se torna marginal e linear.
-2. **Validacao pelo Coeficiente de Silhueta:** O Silhouette Score avalia se os pontos estao densamente agrupados dentro de seu proprio cluster e distantes dos clusters vizinhos. O valor atinge seu ápice absoluto em **$K = 5$ com score de $0.5547$**, comprovando matematicamente que cinco e o numero geometricamente natural de agrupamentos.
-
----
-
-### 3.3 Treinamento e Visualizacao dos Clusters
-
-Treinamos o modelo K-Means final com $K = 5$ utilizando as colunas padronizadas de renda e pontuacao de gastos. Os centroides finais calculados no espaco original foram:
-
-#### Tabela 6: Coordenadas dos Centroides em Escala Original
-
-| Cluster | Renda Anual Media ($k) | Pontuacao de Gastos Media (1-100) | Volume de Clientes | Percentual da Base |
+| Limiar | Recall | Precisão | Falsos positivos | Falsos negativos |
 | :---: | :---: | :---: | :---: | :---: |
-| **0** | $\$55.30\text{k}$ | $49.52$ | 81 | $40.5\%$ |
-| **1** | $\$86.54\text{k}$ | $82.13$ | 39 | $19.5\%$ |
-| **2** | $\$25.73\text{k}$ | $79.36$ | 22 | $11.0\%$ |
-| **3** | $\$88.20\text{k}$ | $17.11$ | 35 | $17.5\%$ |
-| **4** | $\$26.30\text{k}$ | $20.91$ | 23 | $11.5\%$ |
+| 0,50 (padrão) | 55,9% | 65,9% | 108 | 165 |
+| 0,40 | 66,6% | 57,0% | 188 | 125 |
+| 0,35 | 70,3% | 54,5% | 220 | 111 |
+| **0,30** | **75,7%** | **52,0%** | **261** | **91** |
+| 0,25 | 80,7% | 49,8% | 305 | 72 |
 
-![Segmentacao Mall Customers](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p3_clusters_mall_customers.png)
-*Figura 9: Segmentacao 2D dos 200 clientes do Shopping Center com os 5 centroides destacados em preto e dourado.*
-
----
-
-### 3.4 Interpretacao de Negocios e Planos de Marketing
-
-Atribuimos nomes comerciais intuitivos e orientados a negocios para cada um dos 5 clusters identificados pelo algoritmo:
-
-#### 1. Cluster 1: "Clientes VIP / Consumidores de Alto Luxo" (Alta Renda, Alto Gasto)
-- **Perfil:** 39 clientes ($19.5\%$). Apresentam renda anual media de $\$86.5\text{k}$ e escore de gastos de $82.1$.
-- **Comportamento:** Publico nobre de elevadissima rentabilidade, altamente receptivo a novidades de marcas de alto padrao.
-- **Acao de Marketing:** Campanhas de lancamento exclusivo, lounges VIP, servico de concierge personalizado e convites para eventos fechados de alta gastronomia e moda.
-
-#### 2. Cluster 2: "Jovens Impulsivos / Entusiastas da Moda" (Baixa Renda, Alto Gasto)
-- **Perfil:** 22 clientes ($11.0\%$). Renda modesta ($\$25.7\text{k}$), mas engajamento financeiro elevado (score $79.4$).
-- **Comportamento:** Perfil aspiracional (frequentemente estudantes ou jovens em inicio de carreira), que direcionam a maior parte de sua renda disponivel a consumo de vestuario e entretenimento no shopping.
-- **Acao de Marketing:** Oferta de facilidades de pagamento, cartao de credito propio da loja (private label), promocoes relampago em redes sociais (Instagram/TikTok) e marcas de fast-fashion.
-
-#### 3. Cluster 0: "Consumidores Moderados / Classe Media Padrao" (Media Renda, Medio Gasto)
-- **Perfil:** 81 clientes ($40.5\%$). Representa o maior contingente do shopping, com renda media de $\$55.3\text{k}$ e score medio de $49.5$.
-- **Comportamento:** Familias e consumidores convencionais que utilizam o shopping para compras programadas, alimentacao e compras cotidianas de necessidade.
-- **Acao de Marketing:** Programas de pontos e fidelidade acumulativa, campanhas sazonais amplas (Dia das Maes, Natal, Black Friday) e promocoes no cinema e praca de alimentacao.
-
-#### 4. Cluster 3: "Poupadores Cautelosos / Racionais de Alto Poder" (Alta Renda, Baixo Gasto)
-- **Perfil:** 35 clientes ($17.5\%$). Elevada renda media ($\$88.2\text{k}$), porem comportamento de gastos muito contido (score $17.1$).
-- **Comportamento:** Individuos com alta capacidade financeira que nao compram por impulso; valorizam utilidade, durabilidade e solidez.
-- **Acao de Marketing:** Comunicacao institucional que enfatize confiabilidade, tecnologia de ponta, garantia estendida e investimentos em produtos de valor agregado duradouro em vez de apelos emocionais superficiais.
-
-#### 5. Cluster 4: "Consumidores Economicos / Conscientes" (Baixa Renda, Baixo Gasto)
-- **Perfil:** 23 clientes ($11.5\%$). Baixa renda media ($\$26.3\text{k}$) associada a baixo score de compras ($20.9$).
-- **Comportamento:** Frequentadores pontuais que entram no shopping prioritariamente em busca de servicos basicos ou promocoes de queima de estoque.
-- **Acao de Marketing:** Promocoes de queima de estoque, cupons de desconto por volume e campanhas direcionadas estritamente ao custo-beneficio essencial.
+Com limiar **0,30**, o modelo passa a identificar 3 de cada 4 clientes que vão cancelar (74 clientes a mais retidos no teste), ao custo de 153 descontos a mais. A escolha final depende do valor do desconto comparado ao valor de um cliente perdido.
 
 ---
 
-## Problema 4: Clusterizacao Musical - "Criando a Playlist Perfeita"
+# PARTE 2 — Aprendizado Não Supervisionado
 
-### 4.1 Limpeza e Filtragem de Metadados Textuais
+## Problema 3: Clusterização — "O Perfil do Consumidor"
 
-O dataset do Spotify disponibilizado contem 114.000 faixas musicais e 21 colunas.
+### 3.1 Escalonamento
 
-#### As colunas de texto ajudam a calcular distancias matematicas?
-**Nao.** Colunas textuais como `track_id`, `artists`, `album_name`, `track_name` e `track_genre` sao rotulos nominais qualitativos.
-- **Fundamentacao Matematica:** A metrica euclidiana $d(u, v) = \sqrt{\sum_{i=1}^d (u_i - v_i)^2}$ opera estritamente sobre espacos metricos no corpo dos reais $\mathbb{R}^d$. Textos nao possuem ordenacao metrica intrinseca. Se tentassemos aplicar uma codificacao ordinal arbitraria (ex: transformar nomes de artistas em inteiros de 1 a 30.000), estariamos impondo uma falsa proximidade geometrica (onde o artista 101 pareceria 'mais proximo' do artista 102 do que do 500), introduzindo um ruido severo que corromperia o agrupamento.
-- **Acao Pratica Adotada:** Desacoplamos os metadados textuais em uma tabela de consulta (*lookup table*) e utilizamos **exclusivamente as 9 variaveis acusticas continuas** para a formacao dos clusters: `danceability`, `energy`, `loudness`, `speechiness`, `acousticness`, `instrumentalness`, `liveness`, `valence` e `tempo`.
+O K-Means agrupa os clientes pela **distância euclidiana**, então uma variável com valores muito maiores domina a distância e a outra quase não conta. Por exemplo, se a renda estivesse em reais (30.000 a 150.000) e a pontuação de gastos de 1 a 100, uma diferença de R$ 1.000 na renda pesaria mais que a escala inteira de gastos.
 
----
+**Neste dataset em particular, as escalas já são parecidas:**
 
-### 4.2 Analise de Correlacao Acustica: `energy` vs `acousticness`
+| Variável | Mínimo | Máximo | Desvio padrão |
+| --- | :---: | :---: | :---: |
+| `Annual Income (k$)` (em milhares) | 15 | 137 | 26,3 |
+| `Spending Score (1-100)` | 1 | 99 | 25,8 |
 
-Calculamos o coeficiente linear de Pearson entre o nivel de energia e a acustica das 114.000 musicas:
+Mesmo assim, aplicamos o **`StandardScaler`** (padronização: `z = (x − média) ÷ desvio padrão`) como boa prática. Depois dele, as duas variáveis ficam com média 0 e desvio padrão 1, e garantimos que nenhuma pese mais que a outra. Isso também deixa o código pronto para receber variáveis com escalas diferentes (ex.: idade).
 
-$$r = \mathbf{-0.7339}$$
+### 3.2 Quantidade de clusters: Método do Cotovelo
 
-Constata-se uma **correlacao fortemente negativa**.
+Treinamos o K-Means com K de 1 a 10 e registramos a **inércia** (soma das distâncias de cada cliente ao centro do seu grupo). Como apoio, calculamos também o **coeficiente de silhueta** (quanto mais perto de 1, mais separados os grupos).
 
-![Correlacao Acustica Spotify](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p4_correlacao_energy_acousticness.png)
-*Figura 10: (Esquerda) Dispersao inversa entre Energy e Acousticness comprovando a forte associacao negativa (r = -0.7339); (Direita) Heatmap completo de correlacao das propriedades acusticas.*
+| K | Inércia | Silhueta |
+| :---: | :---: | :---: |
+| 1 | 400,0 | — |
+| 2 | 269,7 | 0,321 |
+| 3 | 157,7 | 0,467 |
+| 4 | 108,9 | 0,494 |
+| **5** | **65,6** | **0,555** |
+| 6 | 55,1 | 0,540 |
+| 7 | 44,9 | 0,528 |
+| 8 | 37,2 | 0,455 |
+| 9 | 32,4 | 0,457 |
+| 10 | 30,0 | 0,443 |
 
-#### O que isso significa no mundo real da musica?
-Esta correlacao fortemente inversa e uma consequencia direta dos principios fisicos da gravacao sonora e da engenharia de audio:
-1. **Energy (Energia):** Mensura a intensidade sonora percebida, faixa dinamica hipercomprimida (alto ganho RMS), saturacao de graves e frequencias agudas amplificadas. E caracteristica marcante de generos que utilizam geradores eletricos e sintetizados, distorcoes intencionais e amplificadores de guitarra (Rock, Heavy Metal, EDM, Eletronica e Hip-Hop moderno).
-2. **Acousticness (Acustica):** Mede a probabilidade estatistica de a gravacao ter sido originada de fontes puramente mecanicas e acusticas sem processamento eletrico ativo (violao desplugado, piano de cauda, quarteto de cordas classico, vozes cruas em salas com reverberacao natural). O som acustico possui transientes dinamicos suaves, menor densidade de decibeis e decaimento harmonico longo.
-3. **Conclusao Fisica:** Trata-se de um compromisso sonoro mutuamente excludente: faixas de alta energia requerem eletricidade e compressao macica, destruindo as propriedades acusticas puras; e gravacoes acusticas preservam o silencio e a dinamica natural, impedindo niveis artificiais extremos de energia.
+![Cotovelo e silhueta](outputs/p3_elbow_silhouette.png)
 
----
+**Escolhemos K = 5.** Até K = 5, cada cluster a mais reduz bastante a inércia (de 108,9 para 65,6 ao passar de 4 para 5). Depois disso, o ganho fica pequeno (de 65,6 para 55,1 ao passar para 6): é o "cotovelo" da curva. A silhueta confirma: é maior em K = 5 (0,555).
 
-### 4.3 Treinamento do K-Means (5 Playlists)
+### 3.3 Treino e visualização
 
-Normalizamos os 9 atributos continuos com `StandardScaler` e instanciamos o K-Means com $K = 5$ clusters. Os centroides acusticos obtidos permitiram mapear as 5 playlists tematicas ("vibes"):
+Treinamos o K-Means com K = 5 usando apenas `Annual Income (k$)` e `Spending Score (1-100)` padronizadas.
 
-#### Tabela 7: Perfil Sonoro dos 5 Clusters / Playlists
+| Cluster | Renda média (k$) | Gasto médio (1-100) | Clientes |
+| :---: | :---: | :---: | :---: |
+| 0 | 55,3 | 49,5 | 81 (40,5%) |
+| 1 | 86,5 | 82,1 | 39 (19,5%) |
+| 2 | 25,7 | 79,4 | 22 (11,0%) |
+| 3 | 88,2 | 17,1 | 35 (17,5%) |
+| 4 | 26,3 | 20,9 | 23 (11,5%) |
 
-| Cluster | Faixas | Energy | Acousticness | Danceability | Loudness | Valence | Tempo | Conceito da Playlist ("Vibe") |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **0** | 8.393 ($7.4\%$) | $0.75$ | $0.35$ | $0.53$ | $-6.8\text{ dB}$ | $0.50$ | $120.9$ | **Vibe Urbana & Pop Suave:** Faixas radiofonicas com presenca equilibrada de voz e batida comercial. |
-| **1** | 31.557 ($27.7\%$) | $0.81$ | $0.06$ | $0.48$ | $-5.8\text{ dB}$ | $0.32$ | $136.8$ | **Treino Intenso & Adrenalina:** Maxima energia, distorcao eletrica pesada e andamento acelerado (Rock/EDM). |
-| **2** | 8.163 ($7.2\%$) | **$0.19$** | **$0.83$** | $0.36$ | **$-17.8\text{ dB}$** | $0.19$ | $104.2$ | **Acustico Intimista & Calmaria:** Sons desplugados, instrumentais delicados, musica para estudo e meditacao. |
-| **3** | 24.705 ($21.7\%$) | $0.39$ | $0.66$ | $0.54$ | $-10.9\text{ dB}$ | $0.40$ | $113.5$ | **Folk & Melodias Nostalgicas:** Faixas calmas, vocais melodicos e arranjos acustico-pop. |
-| **4** | 41.181 ($36.1\%$) | $0.73$ | $0.19$ | **$0.70$** | $-6.5\text{ dB}$ | **$0.69$** | $119.9$ | **Festa & Ritmo Contagiante:** Faixas altamente dancaveis, ritmicas e de tom emocional alegre/eufórico. |
+![Clusters de clientes](outputs/p3_clusters_mall_customers.png)
 
-![Perfil Acustico dos Clusters](file:///c:/Users/c9hes/Documents/faculdade/machine%20learning/outputs/p4_clusters_distribuicao.png)
-*Figura 11: Assinatura acustica media comparativa das 5 playlists geradas pelo K-Means.*
+### 3.4 Interpretação de negócio: nomes dos grupos
 
----
+| Cluster | Perfil | Nome comercial | Ação de marketing |
+| :---: | --- | --- | --- |
+| 1 | Renda alta, gasto alto | **Clientes VIP** | Lançamentos exclusivos, eventos fechados, atendimento personalizado |
+| 2 | Renda baixa, gasto alto | **Jovens Impulsivos** | Parcelamento, cartão da loja, promoções relâmpago nas redes sociais |
+| 0 | Renda média, gasto médio | **Clientes Padrão** | Programa de pontos, campanhas de datas comemorativas (Natal, Dia das Mães) |
+| 3 | Renda alta, gasto baixo | **Poupadores Cautelosos** | Destacar qualidade, durabilidade e garantia, em vez de apelo emocional |
+| 4 | Renda baixa, gasto baixo | **Consumidores Econômicos** | Cupons, liquidações e ofertas de custo-benefício |
 
-### 4.4 A Prova de Fogo: Inspecao Qualitativa Humana de 5 Musicas
-
-Selecionamos o **Cluster 2 (Playlist Acustico Intimista & Calmaria)** e extraimos uma amostra aleatoria de 5 musicas para inspecao humana de coesao auditiva:
-
-#### Tabela 8: Amostra de Faixas do Cluster 2
-
-| # | Artista | Nome da Faixa | Album | Acousticness | Energy | Danceability | Tempo |
-| :---: | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| **1** | Moomu | *Cloudology* | Aguatic | **$0.884$** | **$0.064$** | $0.158$ | $107.4\text{ BPM}$ |
-| **2** | Ochre | *Rising Tide* | An Eye To Windward | **$0.660$** | **$0.227$** | $0.533$ | $86.0\text{ BPM}$ |
-| **3** | Wes Montgomery | *Days Of Wine And Roses* | Boss Guitar | **$0.991$** | **$0.030$** | $0.470$ | $89.4\text{ BPM}$ |
-| **4** | Benny Martin; The Wong Janice | *Hallelujah - Piano & Cello* | Hallelujah (Piano & Cello) | **$0.888$** | **$0.198$** | $0.309$ | $65.7\text{ BPM}$ |
-| **5** | White Noise for Babies | *Starlights* | Sea of White Noise | **$0.840$** | **$0.152$** | $0.265$ | $145.8\text{ BPM}$ |
-
-#### Avaliacao Qualitativa Humana: Faz Sentido essas Musicas Estarem na Mesma Playlist?
-**Sim, faz perfeito sentido do ponto de vista musical e auditivo.**
-- **Wes Montgomery - 'Days Of Wine And Roses':** Obra-prima do jazz com guitarra eletroacustica com palhetada aveludada pelo polegar, andamento moderado e silencio dinamico.
-- **Benny Martin & The Wong Janice - 'Hallelujah - Piano & Cello':** Composicao estritamente instrumental de piano e violoncelo, com decaimento acustico profundo e sem nenhuma percussao eletrica.
-- **Moomu - 'Cloudology' e Ochre - 'Rising Tide':** Composicoes de ambiencia eterea, com timbres orgânicos e baixa excitabilidade ritmica.
-- **White Noise for Babies - 'Starlights':** Faixa acustico-ambiental serena desenvolvida especificamente para relaxamento profundo e repouso.
-
-**Conclusao Humana:** Todas as faixas selecionadas operam em uma mesma 'paisagem sonora' (soundscape): indices de acustica acima de $0.65$, energias controladas abaixo de $0.23$ e volumes baixos (loudness inferior a $-15\text{ dB}$). Para um usuario que procura uma playlist de foco, estudo intensivo, leitura ou calmaria noturna, a transicao entre qualquer uma dessas musicas ocorre de maneira suave e acusticamente natural. O algoritmo atingiu seu objetivo plenamente sem precisar de generos textuais pre-concebidos.
+O grupo mais interessante para o shopping é o dos **Poupadores Cautelosos**: têm tanto dinheiro quanto os VIPs, mas gastam pouco no shopping. Há espaço para conquistar esse público.
 
 ---
 
-## Conclusao Geral da Squad
+## Problema 4: Clusterização Musical — "Criando a Playlist Perfeita"
 
-A execucao dos quatro problemas demonstrou com solidez a aplicacao do metodo cientifico na resolucao de desafios corporativos:
-1. **Regressao Linear (Problema 1):** Demonstrou que o saneamento estrutural de nulos e o tratamento de espacos euclidianos elevam a precisao do modelo, reduzindo o erro medio da precificacao para $\$19.245$.
-2. **Classificacao de Churn (Problema 2):** Esclareceu que metricas puras de acuracia sao ineficientes em bases desbalanceadas e comprovou que o Falso Negativo e o risco financeiro critico no modelo de receita recorrente.
-3. **Segmentacao de Clientes (Problema 3):** Justificou o uso do Z-Score e validou matematicamente o ponto otimo do cotovelo e silhueta em $K=5$, traduzindo clusters abstratos em planos acionaveis de marketing.
-4. **Clusterizacao Musical (Problema 4):** Provou que a fisica das ondas e as caracteristicas timbricas puras contem informacao suficiente para criar colecoes musicais harmonicamente perfeitas.
+### 4.1 Limpeza e filtragem
 
-Todos os scripts, notebooks e graficos encontram-se salvos no repositorio local do projeto para fins de auditoria, validacao e submissao formal.
+**As colunas de texto ajudam a calcular distâncias? Não.** `track_id`, `artists`, `album_name`, `track_name` e `track_genre` são nomes e códigos. Não existe distância entre "Coldplay" e "Metallica"; e se transformássemos os artistas em números (1, 2, 3…), o algoritmo acharia que o artista 101 é "parecido" com o 102 só porque os números estão perto.
+
+O que fizemos:
+
+1. **Retiramos as colunas de texto do treino**, mas as mantivemos na tabela para consultar o nome das músicas depois. O gênero também ficou de fora, porque o enunciado pede playlists "sem usar o gênero musical"; ele só foi usado no final, para conferir os grupos.
+2. **Removemos as duplicatas.** O dataset tem 114.000 linhas, mas só **89.740 faixas únicas**: a mesma música aparece uma vez para cada gênero em que foi cadastrada, com as mesmas características. Sem remover, essas músicas pesariam em dobro no agrupamento.
+3. **Usamos 9 atributos acústicos numéricos:** `danceability`, `energy`, `loudness`, `speechiness`, `acousticness`, `instrumentalness`, `liveness`, `valence` e `tempo`, padronizados com `StandardScaler` (o `loudness` e o `tempo` têm escalas bem maiores que os outros).
+4. **Deixamos de fora `key` (tom) e `mode` (maior/menor):** são códigos de categoria (0 = Dó, 1 = Dó#, …, 11 = Si). A distância entre os números não tem sentido musical: o tom 11 (Si) está a meio tom do 0 (Dó), mas os números dizem que estão longe.
+
+### 4.2 Correlação entre `energy` e `acousticness`
+
+**Sim, há uma correlação negativa forte: r = −0,73.**
+
+![Correlação energy × acousticness](outputs/p4_correlacao_energy_acousticness.png)
+
+**O que isso significa no mundo real:** músicas mais acústicas (violão, piano, voz sem efeitos) tendem a ser mais calmas, e músicas com muita energia (rock pesado, música eletrônica) quase sempre usam instrumentos elétricos, sintetizadores e volume alto. Na prática, é raro encontrar uma música ao mesmo tempo muito acústica e muito agitada. Existem exceções (um samba de roda ou um forró pé de serra podem ser acústicos e animados), por isso a correlação é forte, mas não perfeita.
+
+### 4.3 Treino: 5 clusters (5 playlists)
+
+Usamos o **K-Means com K = 5**, como pedido. Cada cluster recebeu o nome do atributo em que mais se destaca:
+
+| Cluster | Playlist | Faixas | Energy | Acoustic. | Instrum. | Dance. | Valence | Speech. | Volume (dB) |
+| :---: | --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| 0 | **Pesado & Adrenalina** | 26.856 (29,9%) | **0,82** | 0,07 | 0,24 | 0,48 | 0,32 | 0,08 | −6,0 |
+| 1 | **Acústico com Voz** | 20.830 (23,2%) | 0,39 | **0,67** | 0,06 | 0,53 | 0,40 | 0,06 | −10,5 |
+| 2 | **Festa & Dança** | 33.656 (37,5%) | 0,73 | 0,21 | 0,06 | **0,69** | **0,69** | 0,09 | −6,5 |
+| 3 | **Calmaria Instrumental** | 7.296 (8,1%) | 0,20 | 0,82 | **0,78** | 0,35 | 0,18 | 0,05 | −20,7 |
+| 4 | **Falado & Stand-up** | 1.102 (1,2%) | 0,67 | 0,73 | 0,01 | 0,57 | 0,45 | **0,83** | −11,1 |
+
+![Perfil acústico dos clusters](outputs/p4_clusters_distribuicao.png)
+
+**Conferência com o gênero** (que não foi usado no treino) — os 4 gêneros mais comuns de cada cluster:
+
+| Playlist | Gêneros mais comuns |
+| --- | --- |
+| Pesado & Adrenalina | grindcore, black-metal, death-metal, heavy-metal |
+| Acústico com Voz | tango, honky-tonk, cantopop, romance |
+| Festa & Dança | salsa, dancehall, forró, kids |
+| Calmaria Instrumental | sleep, new-age, ambient, classical |
+| Falado & Stand-up | comedy, show-tunes, kids, children |
+
+Os grupos batem com o que se espera de cada estilo: o algoritmo separou metal, música dançante, música acústica cantada, música para relaxar e até áudios de comédia, olhando só para os números do som.
+
+### 4.4 A prova de fogo
+
+Escolhemos o cluster **Calmaria Instrumental** e sorteamos 5 músicas entre as mais populares dele (popularidade ≥ 70), para que pudéssemos conhecer as faixas:
+
+| # | Artista | Música | Gênero cadastrado | Acoustic. | Instrum. | Energy | Volume (dB) |
+| :---: | --- | --- | --- | :---: | :---: | :---: | :---: |
+| 1 | Bon Iver | *Beach Baby* | folk | 0,98 | 0,41 | 0,08 | −17,3 |
+| 2 | Clairo | *Bubble Gum* | indie-pop | 0,98 | 0,00 | 0,02 | −24,6 |
+| 3 | Little Circuits | *Beautiful Imagination* | sleep | 0,80 | 0,93 | 0,03 | −34,2 |
+| 4 | Sohn Aelia | *Herinneringen* | sleep | 0,99 | 0,91 | 0,00 | −37,2 |
+| 5 | Yiruma | *River Flows In You* | classical | 0,99 | 0,94 | 0,22 | −21,3 |
+
+**Faz sentido estarem na mesma playlist? Sim, para uma playlist de relaxar, estudar ou dormir.** As cinco são muito acústicas, têm energia quase zero e volume baixo. *River Flows In You* (piano solo) e as duas faixas de "sleep" são instrumentais e tranquilas, e as músicas de Bon Iver e Clairo, mesmo tendo voz, são sussurradas e minimalistas, no mesmo clima.
+
+O agrupamento juntou músicas de 4 gêneros cadastrados diferentes (folk, indie-pop, sleep, classical) pelo **clima** do som, que era exatamente o objetivo. A ressalva: as faixas de "sleep" são mais um som de fundo do que músicas para ouvir com atenção, então quem ouvisse a playlist notaria a diferença entre elas e as canções de Bon Iver e Clairo.
+
+---
+
+## Conclusão
+
+1. **Problema 1:** `OverallQual`, `GrLivArea` e `GarageCars` são as variáveis mais ligadas ao preço. O baseline linear explica 82% da variação dos preços; com todas as colunas, log do preço e ajuste de hiperparâmetros, o erro médio caiu de US$ 21,9 mil para US$ 11,8 mil.
+2. **Problema 2:** o dataset é desbalanceado (26,5% de churn), então a acurácia sozinha engana. O contrato mensal é o maior fator de risco. Como o falso negativo é o erro mais caro, recomendamos baixar o limiar de decisão para cerca de 0,30.
+3. **Problema 3:** o K-Means com K = 5 encontrou cinco perfis claros de clientes, cada um com uma estratégia de marketing própria.
+4. **Problema 4:** sem usar o gênero, o K-Means formou 5 playlists que batem com os gêneros reais, e a amostra do cluster calmo mostrou músicas de estilos diferentes com o mesmo clima.

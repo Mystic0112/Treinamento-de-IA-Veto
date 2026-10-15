@@ -39,17 +39,21 @@ def executar_problema_4():
         'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo'
     ]
     
-    # Remover duplicatas eventuais de faixas
     df_clean = df.dropna(subset=features_acusticas + ['track_name']).copy()
-    print(f"Registros apos verificacao de nulos nas features acusticas: {len(df_clean)}")
-    
+    # A mesma faixa aparece uma vez para cada genero em que foi cadastrada (mesmo track_id,
+    # mesmas features): sem remover, ela pesaria em dobro no agrupamento
+    df_clean = df_clean.drop_duplicates(subset='track_id')
+    print(f"Faixas unicas apos remover nulos e duplicatas de track_id: {len(df_clean)} (de {len(df)} linhas)")
+    print("Colunas 'key' (tom) e 'mode' ficaram de fora: sao codigos de categoria (0 = Do, 1 = Do#...),")
+    print("a distancia entre os numeros nao tem significado musical.")
+
     # 2. Analise de Correlacao: Energy vs Acousticness
     print("-" * 50)
     print("2. Analise da Correlacao entre Energy e Acousticness:")
     r_energy_acoustic = df_clean['energy'].corr(df_clean['acousticness'])
     print(f"  Coeficiente de Correlacao Linear de Pearson: r = {r_energy_acoustic:.4f}")
     print("  Interpretacao Fisica/Musical:")
-    print("  Existe uma correlacao fortemente negativa (r = -0.7339).")
+    print(f"  Existe uma correlacao fortemente negativa (r = {r_energy_acoustic:.4f}).")
     print("  No mundo real da producao musical, faixas com alta energia apresentam ondas sintetizadas,")
     print("  saturacao de ganho, compressao dinamica pesada e amplificacao eletrica (ex: Rock, EDM).")
     print("  Em contrapartida, faixas acusticas utilizam fontes mecanicas puras (voz desplugada, violao, piano),")
@@ -97,38 +101,47 @@ def executar_problema_4():
     print("\nPerfil Acustico Medio dos 5 Clusters / Playlists (Centroides em Escala Original):")
     print(df_centroides[['energy', 'acousticness', 'danceability', 'loudness', 'valence', 'tempo', 'Qtd_Musicas']])
     
-    # Denominacao das 5 Playlists ("Vibes")
+    # Denominacao das 5 Playlists ("Vibes"): cada cluster recebe o nome da feature em que
+    # mais se destaca (maior centroide padronizado). A atribuicao e gulosa e sem repeticao,
+    # entao dois clusters nunca ficam com o mesmo nome.
+    nomes_por_feature = {
+        'speechiness': "Falado & Stand-up",
+        'instrumentalness': "Calmaria Instrumental",
+        'acousticness': "Acustico com Voz",
+        'energy': "Pesado & Adrenalina",
+        'danceability': "Festa & Danca",
+    }
+    centroides_z = pd.DataFrame(kmeans_musica.cluster_centers_, columns=features_acusticas)
+    pares = centroides_z[list(nomes_por_feature)].stack().sort_values(ascending=False)
     nomes_playlists = {}
-    for idx, row in df_centroides.iterrows():
-        if row['acousticness'] > 0.65 and row['energy'] < 0.35:
-            nome = "Playlist 1: 'Acustico Intimista & Calmaria' (Foco Acustico/Relaxante)"
-        elif row['instrumentalness'] > 0.50:
-            nome = "Playlist 2: 'Foco Profundo & Trilha Instrumental' (Alta Instrumentalidade)"
-        elif row['energy'] > 0.75 and row['loudness'] > -7.0:
-            nome = "Playlist 3: 'Treino Intenso & Pura Adrenalina' (Max Energy / Rock / EDM)"
-        elif row['danceability'] > 0.65 and row['valence'] > 0.55:
-            nome = "Playlist 4: 'Festa & Ritmo Contagiante' (Alta Dancabilidade e Positividade)"
-        else:
-            nome = "Playlist 5: 'Vibe Urbana & Pop Suave' (Equilibrio Melodico e Vocal)"
-        nomes_playlists[idx] = nome
-        
+    for (c_id, feature), _ in pares.items():
+        if c_id not in nomes_playlists and nomes_por_feature[feature] not in nomes_playlists.values():
+            nomes_playlists[c_id] = nomes_por_feature[feature]
+
     df_clean['nome_playlist'] = df_clean['cluster'].map(nomes_playlists)
-    
+
     print("\nDescricao das 5 Playlists Geradas:")
     for c_id in sorted(nomes_playlists.keys()):
         qtd = (df_clean['cluster'] == c_id).sum()
         print(f"  Cluster {c_id}: {nomes_playlists[c_id]} ({qtd:,} musicas - {qtd/len(df_clean)*100:.1f}%)")
+
+    # O genero NAO entrou no treino; aqui ele serve so para conferir se os grupos fazem sentido
+    print("\nConferencia: 4 generos mais comuns em cada cluster (genero nao foi usado no treino):")
+    for c_id in sorted(nomes_playlists.keys()):
+        generos = df_clean.loc[df_clean['cluster'] == c_id, 'track_genre'].value_counts().head(4)
+        print(f"  Cluster {c_id} ({nomes_playlists[c_id]}): {', '.join(generos.index)}")
         
     # Grafico 2: Radar ou distribuicao dos clusters
     fig, ax = plt.subplots(figsize=(12, 6))
-    df_radar = df_centroides[['danceability', 'energy', 'acousticness', 'valence', 'speechiness', 'liveness']].copy()
+    df_radar = df_centroides[['danceability', 'energy', 'acousticness', 'instrumentalness', 'valence', 'speechiness', 'liveness']].copy()
     
     df_radar.T.plot(kind='bar', ax=ax, colormap='tab10', width=0.8)
     ax.set_title("Comparativo das Assinaturas Acusticas Medias dos 5 Clusters", fontsize=13, fontweight='bold')
     ax.set_xlabel("Propriedades Acusticas", fontsize=11)
     ax.set_ylabel("Valor Medio Normalizado (0 a 1)", fontsize=11)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=15)
-    ax.legend([f"Cluster {i}: {nomes_playlists[i].split(':')[1].strip()}" for i in range(5)], loc='upper right', frameon=True, fontsize=9)
+    ax.legend([f"Cluster {i}: {nomes_playlists[i]}" for i in range(5)], loc='upper center', bbox_to_anchor=(0.5, -0.18),
+              ncol=3, frameon=False, fontsize=10)
     plt.tight_layout()
     caminho_radar = os.path.join(OUTPUT_DIR, 'p4_clusters_distribuicao.png')
     fig.savefig(caminho_radar, dpi=300)
@@ -138,22 +151,20 @@ def executar_problema_4():
     # 4. A Prova de Fogo: Extracao de 5 musicas de um cluster para inspecao qualitativa
     print("\n" + "=" * 50)
     print("4. A PROVA DE FOGO: INSPECAO QUALITATIVA DE 5 MUSICAS")
-    # Identificar o cluster com maior acousticness (Acustico Intimista)
-    cluster_acustico_id = df_centroides['acousticness'].idxmax()
+    cluster_acustico_id = next(c for c, n in nomes_playlists.items() if n == "Calmaria Instrumental")
     cluster_nome = nomes_playlists[cluster_acustico_id]
-    
-    musicas_cluster = df_clean[df_clean['cluster'] == cluster_acustico_id].sample(n=5, random_state=42)
-    
+
+    # Sorteio entre as faixas populares (popularity >= 70) para que a equipe conheca as musicas
+    # e consiga julgar de ouvido se elas combinam
+    populares = df_clean[(df_clean['cluster'] == cluster_acustico_id) & (df_clean['popularity'] >= 70)]
+    musicas_cluster = populares.sample(n=5, random_state=42)
+
     print(f"\nCluster Selecionado: Cluster {cluster_acustico_id} -> {cluster_nome}")
-    print("Amostra de 5 Faixas Agrupadas pelo Algoritmo:")
+    print(f"Amostra de 5 faixas entre as {len(populares)} populares do cluster:")
     for idx, (_, row) in enumerate(musicas_cluster.iterrows(), 1):
-        print(f"  {idx}. Artista: {row['artists']} | Faixa: '{row['track_name']}' | Album: '{row['album_name']}'")
-        print(f"     [Acousticness: {row['acousticness']:.3f} | Energy: {row['energy']:.3f} | Danceability: {row['danceability']:.3f} | Tempo: {row['tempo']:.1f} BPM]")
-        
-    print("\nAnalise Qualitativa Humana:")
-    print("Faz total sentido essas faixas estarem na mesma playlist.")
-    print("Todas apresentam indices altissimos de acustica (> 0.70) e energia controlada/baixa (< 0.35),")
-    print("garantindo homogeneidade timbrica perfeita para momentos de relaxamento, leitura e calmaria sonora.")
+        print(f"  {idx}. Artista: {row['artists']} | Faixa: '{row['track_name']}' | Genero cadastrado: {row['track_genre']}")
+        print(f"     [Acousticness: {row['acousticness']:.3f} | Instrumentalness: {row['instrumentalness']:.3f} | "
+              f"Energy: {row['energy']:.3f} | Valence: {row['valence']:.3f} | Loudness: {row['loudness']:.1f} dB]")
     print("=" * 50 + "\n")
     
     return {

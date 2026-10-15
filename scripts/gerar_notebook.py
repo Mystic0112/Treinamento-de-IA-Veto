@@ -3,14 +3,14 @@ import os
 
 def criar_notebook_av1():
     cells = []
-    
+
     def add_md(content):
         cells.append({
             "cell_type": "markdown",
             "metadata": {},
             "source": [line + "\n" for line in content.strip().split("\n")]
         })
-        
+
     def add_code(content):
         cells.append({
             "cell_type": "code",
@@ -19,36 +19,41 @@ def criar_notebook_av1():
             "outputs": [],
             "source": [line + "\n" for line in content.strip().split("\n")]
         })
-        
+
     # --- CAPA ---
-    add_md("""# Trabalho Pratico - Trilha de Machine Learning (AV1)
-**Instituicao de Ensino Superior | Disciplina: Machine Learning**  
-**Especialista em Data Science & Machine Learning:** Dado (Squad de IA)  
-**Objetivo:** Resolucao tecnica rigorosa de quatro problemas de negocios cobrindo Aprendizado Supervisionado (Regressao e Classificacao) e Aprendizado Nao Supervisionado (Clusterizacao).
+    # Obs.: valores em dolar sao escritos como US\\$ para o Jupyter nao interpretar '$' como formula
+    add_md("""# Trabalho Prático AV1 — Trilha de Machine Learning
+
+**Disciplina:** Machine Learning — Análise e Desenvolvimento de Sistemas (4º período)
+
+**Integrantes:**
+- Hélio Vinícius Lopes de Meneses — 01780335
+- Yan Seligmann Soares Marques — 01785213
+- Antônio Augusto Costa de Souza Araújo — 01705861
+
+O relatório completo, com todas as respostas, está em `RELATORIO_TRABALHO_AV1_ML.md`. Este notebook mostra o passo a passo do código.
 
 ---
 
-## Estrutura do Trabalho
+## Estrutura
 - **Parte 1: Aprendizado Supervisionado**
-  - **Problema 1: Regressao Linear** - *"O Preco Justo"* (Predicao de precos imobiliarios `SalePrice`)
-  - **Problema 2: Classificacao** - *"A Ameaca do Churn"* (Previsao de evasao de clientes de telecom)
-- **Parte 2: Aprendizado Nao Supervisionado**
-  - **Problema 3: Clusterizacao** - *"O Perfil do Consumidor"* (Segmentacao de clientes de shopping center)
-  - **Problema 4: Clusterizacao Musical** - *"Criando a Playlist Perfeita"* (Agrupamento acustico de 114k faixas do Spotify)
+  - **Problema 1: Regressão Linear** — *"O Preço Justo"* (prever o preço `SalePrice` de imóveis)
+  - **Problema 2: Classificação** — *"A Ameaça do Churn"* (prever cancelamento de clientes de telecom)
+- **Parte 2: Aprendizado Não Supervisionado**
+  - **Problema 3: Clusterização** — *"O Perfil do Consumidor"* (segmentar clientes de um shopping)
+  - **Problema 4: Clusterização Musical** — *"Criando a Playlist Perfeita"* (agrupar músicas do Spotify)
 
----
+Todas as etapas aleatórias usam `random_state = 42`, então os resultados se repetem a cada execução.""")
 
-## Configuracao Global e Reprodutibilidade
-Para assegurar a reprodutibilidade integral de todos os experimentos, fixamos as sementes pseudo-aleatorias (`random_state = 42`) em todas as etapas de amostragem e treinamento.""")
-
-    add_code("""# Importacao de bibliotecas fundamentais
+    add_code("""# Bibliotecas
 import os
+import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Modelagem Supervisionada
+# Modelos supervisionados
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, Ridge, LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -57,11 +62,10 @@ from sklearn.metrics import (r2_score, mean_absolute_error, root_mean_squared_er
                              accuracy_score, precision_score, recall_score, f1_score,
                              confusion_matrix, classification_report, roc_auc_score, roc_curve)
 
-# Modelagem Nao Supervisionada
+# Modelos nao supervisionados
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
-# Configuracao estetica de graficos
 plt.style.use('seaborn-v0_8-whitegrid')
 plt.rcParams['figure.figsize'] = (10, 6)
 plt.rcParams['font.size'] = 11
@@ -73,52 +77,46 @@ print("Ambiente configurado com sucesso e semente fixada em 42.")""")
     add_md("""---
 # PARTE 1: Aprendizado Supervisionado
 
-## Problema 1: Regressao Linear - "O Preco Justo"
+## Problema 1: Regressão Linear — "O Preço Justo"
 
-### Contexto de Negocio
-Uma imobiliaria contratou nossa equipe para desenvolver um modelo preditivo capaz de estimar o valor venal de imoveis residenciais com base em suas caracteristicas estruturais e de localizacao.
+Uma imobiliária quer precificar imóveis automaticamente a partir das suas características. Cinco imóveis "secretos" foram retirados da base; a equipe com o menor **Erro Absoluto Médio (MAE)** nesses imóveis ganha um ponto extra.
 
-### Regra da Competicao
-Foram ocultados 5 registros 'secretos' da base de dados sem a coluna de precos (`SalePrice`). A equipe com menor Erro Absoluto Medio (**MAE**) sobre essas observacoes conquistara a pontuacao maxima.
+`MAE = média de |preço real − preço previsto|`""")
 
-$$MAE = \\frac{1}{n} \\sum_{i=1}^n |y_i - \\hat{y}_i|$$""")
-
-    add_code("""# Carga do dataset de precos imobiliarios
+    add_code("""# Carga do dataset de precos de imoveis
 caminho_p1 = '4-bloco-Machine Learing/TRABALHO AV1/Problema 1/house-prices.csv'
 df_house = pd.read_csv(caminho_p1)
 print(f"Dataset carregado: {df_house.shape[0]} imoveis e {df_house.shape[1]} colunas.")
-df_house.head(3)""")
+print(df_house[['Id', 'OverallQual', 'GrLivArea', 'Neighborhood', 'SalePrice']].head(3).to_string(index=False))""")
 
-    add_md("""### 1.1 Analise Exploratoria: Identificacao dos Top 3 Preditores Lineares
-Calculamos a matriz de correlacao de Pearson ($r$) entre todas as colunas numericas e a variavel alvo `SalePrice`:
+    add_md("""### 1.1 Análise exploratória: as 3 variáveis mais correlacionadas com o preço
+Calculamos a correlação de Pearson (*r*) entre cada variável numérica e `SalePrice`. Quanto mais perto de 1, mais forte a relação linear positiva.""")
 
-$$r_{X, Y} = \\frac{\\sum (X_i - \\bar{X})(Y_i - \\bar{Y})}{\\sqrt{\\sum (X_i - \\bar{X})^2 \\sum (Y_i - \\bar{Y})^2}}$$""")
-
-    add_code("""# Calculo das correlacoes lineares de Pearson com SalePrice
+    add_code("""# Correlacao de Pearson de cada variavel numerica com SalePrice
 corr_p1 = df_house.select_dtypes(include=[np.number]).corr()['SalePrice'].sort_values(ascending=False)
 top_corr_p1 = corr_p1.iloc[1:11]
 
-print("Top 10 Variaveis com Maior Correlacao Linear Positiva com SalePrice:")
+print("Top 10 variaveis com maior correlacao linear positiva com SalePrice:")
 for idx, (col, val) in enumerate(top_corr_p1.items(), 1):
     print(f"  {idx:2d}. {col:15s}: r = {val:.4f}")
 
 top3_features = corr_p1.iloc[1:4].index.tolist()
 print(f"\\nAs 3 principais variaveis sao: {top3_features}")""")
 
-    add_code("""# Visualizacao 1: Matriz de Correlacao Heatmap
+    add_code("""# Grafico 1: matriz de correlacao das 10 variaveis mais correlacionadas
 features_heatmap = corr_p1.head(10).index
 plt.figure(figsize=(9, 7))
 sns.heatmap(df_house[features_heatmap].corr(), annot=True, fmt=".2f", cmap='Blues', cbar_kws={'label': 'Pearson r'})
-plt.title("Matriz de Correlacao Linear de Pearson - Top Atributos vs SalePrice", fontsize=13, fontweight='bold', pad=15)
+plt.title("Matriz de Correlação de Pearson — Top Atributos vs SalePrice", fontsize=13, fontweight='bold', pad=15)
 plt.tight_layout()
 plt.show()""")
 
-    add_code("""# Visualizacao 2: Gráficos de Dispersao com Linha de Regressao para os Top 3 Preditores
+    add_code("""# Grafico 2: dispersao com reta de regressao para as 3 principais variaveis
 fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 labels_dict = {
-    'OverallQual': 'Qualidade Geral dos Materiais (1 a 10)',
-    'GrLivArea': 'Area Construida Acima do Solo (sq ft)',
-    'GarageCars': 'Capacidade de Carros na Garagem'
+    'OverallQual': 'Qualidade geral dos materiais (1 a 10)',
+    'GrLivArea': 'Área construída acima do solo (pés²)',
+    'GarageCars': 'Capacidade de carros na garagem'
 }
 
 for i, col in enumerate(top3_features):
@@ -127,84 +125,66 @@ for i, col in enumerate(top3_features):
                 line_kws={'color': '#d62728', 'linewidth': 2})
     axes[i].set_title(f"{col} (r = {corr_p1[col]:.3f})", fontsize=13, fontweight='bold')
     axes[i].set_xlabel(labels_dict.get(col, col), fontsize=11)
-    axes[i].set_ylabel("Preco de Venda ($)" if i == 0 else "", fontsize=11)
+    axes[i].set_ylabel("Preço de venda (US$)" if i == 0 else "", fontsize=11)
     axes[i].yaxis.set_major_formatter('${x:,.0f}')
 
-plt.suptitle("Dispersao e Tendencia Linear: Top 3 Preditores vs Preco de Venda", fontsize=15, fontweight='bold', y=1.03)
+plt.suptitle("Dispersão e tendência linear: top 3 variáveis vs preço de venda", fontsize=15, fontweight='bold', y=1.03)
 plt.tight_layout()
 plt.show()""")
 
-    add_md("""### 1.2 Tratamento de Valores Ausentes (Missing Values)
-O dataset possui colunas com informacoes faltantes. Para responder com rigor metodologico:
-1. **Coluna Numerica Selecionada: `LotFrontage`** (comprimento da fachada/testada do imovel em pes lineares):
-   - Apresenta 259 valores nulos (17.80%).
-   - **Estrategia de Tratamento:** Imputacao pela **mediana agrupada por bairro (`Neighborhood`)**.
-   - **Justificativa Estatistica:** Terrenos pertencentes a um mesmo loteamento urbano compartilham dimensoes padronizadas de testada. Ademais, a mediana e um estimador robusto a assimetrias e presenca de outliers extremos, superando a media aritmetica.
-2. **Coluna Categorica Selecionada: `BsmtQual`** (altura/qualidade do pe-direito do porao):
-   - Apresenta 37 valores nulos (2.54%).
-   - **Estrategia de Tratamento:** Preenchimento com a categoria explicita `'None'` ("Sem Porao").
-   - **Justificativa Estatistica:** No Ames Housing Dataset, a ausencia desse dado reflete **Missingness Estrutural (MNAR)**: o imovel simplesmente nao possui porao construído. Descartar essas linhas eliminaria imoveis validos e imputar a moda (categoria mais frequente) inventaria um porao inexistente.""")
+    add_md("""As três variáveis com maior correlação positiva são **`OverallQual`** (r = 0,79), **`GrLivArea`** (r = 0,70) e **`GarageCars`** (r = 0,64).
 
-    add_code("""# Tratamento de Nulos
-# 1. Numerica: LotFrontage via mediana condicional ao bairro
+### 1.2 Tratamento de valores nulos
+1. **Coluna numérica — `LotFrontage`** (largura da frente do terreno): 259 nulos (17,8%).
+   - **Tratamento:** mediana do bairro (`Neighborhood`) do imóvel.
+   - **Justificativa:** imóveis do mesmo bairro tendem a ter terrenos parecidos, e a mediana é menos afetada por terrenos muito grandes do que a média. Apagar as linhas jogaria fora quase 18% da base.
+2. **Coluna categórica — `BsmtQual`** (qualidade do porão): 37 nulos (2,5%).
+   - **Tratamento:** categoria `'None'` (sem porão).
+   - **Justificativa:** pela documentação do dataset, o vazio significa que o imóvel **não tem porão**. Preencher com a moda inventaria um porão que não existe, e apagar as linhas eliminaria imóveis válidos.""")
+
+    add_code("""# Tratamento de nulos
+# 1. Numerica: LotFrontage pela mediana do bairro (e mediana geral se o bairro inteiro estiver vazio)
 mediana_bairro = df_house.groupby('Neighborhood')['LotFrontage'].transform('median')
 df_house['LotFrontage'] = df_house['LotFrontage'].fillna(mediana_bairro)
 df_house['LotFrontage'] = df_house['LotFrontage'].fillna(df_house['LotFrontage'].median())
 
-# Numerica auxiliar: MasVnrArea preenchida com 0.0 (sem alvenaria)
+# Numerica auxiliar: MasVnrArea vazia = sem revestimento de alvenaria
 if 'MasVnrArea' in df_house.columns:
     df_house['MasVnrArea'] = df_house['MasVnrArea'].fillna(0.0)
 
-# 2. Categorica: BsmtQual preenchida com categoria estrutural 'None'
+# 2. Categorica: BsmtQual vazia = imovel sem porao
 df_house['BsmtQual'] = df_house['BsmtQual'].fillna('None')
 
 print("Valores ausentes tratados com sucesso!")
 print(f"Nulos residuais em LotFrontage: {df_house['LotFrontage'].isnull().sum()}")
 print(f"Nulos residuais em BsmtQual:    {df_house['BsmtQual'].isnull().sum()}")""")
 
-    add_md("""### 1.3 Engenharia de Atributos e Necessidade Matematica da Conversao Categorica
-Transformamos as colunas categoricas em numericas utilizando:
-- **Mapeamento Ordinal:** `BsmtQual` possui hierarquia de qualidade intrinseca (`Ex`: 5, `Gd`: 4, `TA`: 3, `Fa`: 2, `Po`: 1, `None`: 0).
-- **One-Hot Encoding:** `Neighborhood` (bairros) representa categorias nominais sem relacao de ordem, convertidas em variaveis indicadoras binarias (dummies) com `drop_first=True` para evitar colinearidade estrita.
+    add_md("""### 1.3 Engenharia de atributos
+- **`BsmtQual` → codificação ordinal:** as categorias têm ordem natural de qualidade (`Ex` = 5, `Gd` = 4, `TA` = 3, `Fa` = 2, `Po` = 1, `None` = 0).
+- **`Neighborhood` → One-Hot Encoding:** bairros não têm ordem, então cada bairro vira uma coluna 0/1 (`drop_first=True` descarta uma coluna que pode ser deduzida das outras).
 
-#### Fundamentacao Matematica: Por que a Regressao Linear Exige Dados Numericos?
-A Regressao Linear assume a formulacao matricial:
+**Por que a Regressão Linear exige essa conversão?** O modelo calcula o preço como uma soma ponderada: `preço = b0 + b1 × variável1 + b2 × variável2 + ...`. Essa conta só funciona com números — não existe "0,3 × `'CollgCr'`". E a forma de converter importa: se os bairros virassem 1, 2, 3…, o modelo entenderia que o bairro 3 vale "três vezes" o bairro 1, uma ordem que não existe.""")
 
-$$Y = X\\beta + \\epsilon$$
-
-onde a solucao de Minimos Quadrados Ordinarios (OLS) e obtida analiticamente atraves da equacao normal:
-
-$$\\hat{\\beta} = (X^T X)^{-1} X^T Y$$
-
-A matriz de planejamento $X \\in \\mathbb{R}^{n \\times (p+1)}$ requer necessariamente escalares reais para viabilizar as operacoes de:
-1. Produto interno no espaco vetorial euclidiano $\\langle x_i, \\beta \\rangle$.
-2. Multiplicacao e inversao matricial $(X^T X)^{-1}$.
-
-Strings ou rotulos nominais nao possuem estrutura algebrica (nao se pode somar ou multiplicar nomes de bairros por coeficientes $\\beta$). A codificacao numerica mapeia categorias para eixos ortogonais no hiperplano de projecao linear.""")
-
-    add_code("""# Codificacao Ordinal de BsmtQual
+    add_code("""# Codificacao ordinal de BsmtQual
 mapa_ord_qual = {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'None': 0}
 df_house['BsmtQual_Num'] = df_house['BsmtQual'].map(mapa_ord_qual).fillna(0)
 
-# Codificacao One-Hot para Neighborhood
+# One-Hot Encoding de Neighborhood
 df_house_encoded = pd.get_dummies(df_house, columns=['Neighborhood'], drop_first=True, dtype=float)
 
 print("Codificacoes concluidas com sucesso!")
 print(f"Dimensoes apos One-Hot Encoding: {df_house_encoded.shape}")""")
 
-    add_md("""### 1.4 Treinamento e Modelo Baseline
-Separamos os dados em 80% treino e 20% teste com `random_state=42`. Treinamos a regressao linear multipla e calculamos $R^2$, MAE e RMSE.
+    add_md("""### 1.4 Treino e baseline
+Separamos 80% para treino e 20% para teste (`random_state=42`) e treinamos uma Regressão Linear múltipla com 10 variáveis, sem ajustes.""")
 
-$$R^2 = 1 - \\frac{SS_{res}}{SS_{tot}} = 1 - \\frac{\\sum (y_i - \\hat{y}_i)^2}{\\sum (y_i - \\bar{y}_i)^2}$$""")
-
-    add_code("""# Definicao dos atributos do modelo baseline
+    add_code("""# Atributos do modelo baseline
 features_base = [
-    'OverallQual', 'GrLivArea', 'GarageCars', 'GarageArea', 
-    'TotalBsmtSF', '1stFlrSF', 'FullBath', 'YearBuilt', 
+    'OverallQual', 'GrLivArea', 'GarageCars', 'GarageArea',
+    'TotalBsmtSF', '1stFlrSF', 'FullBath', 'YearBuilt',
     'LotFrontage', 'BsmtQual_Num'
 ]
 
-# Imputacao preventiva de nulos residuais nas numericas
 for c in features_base:
     if df_house_encoded[c].isnull().sum() > 0:
         df_house_encoded[c] = df_house_encoded[c].fillna(df_house_encoded[c].median())
@@ -215,7 +195,6 @@ y_house = df_house_encoded['SalePrice']
 # Split 80/20 com seed fixa
 X_tr, X_te, y_tr, y_te = train_test_split(X_base, y_house, test_size=0.20, random_state=SEED)
 
-# Treinamento OLS Baseline
 reg_base = LinearRegression()
 reg_base.fit(X_tr, y_tr)
 
@@ -226,17 +205,15 @@ rmse_te = root_mean_squared_error(y_te, y_pred_te)
 
 print("=" * 55)
 print("METRICAS DO MODELO BASELINE (DADOS DE TESTE):")
-print(f"  R2 (Coeficiente de Determinacao): {r2_te:.4f} ({r2_te*100:.2f}%)")
-print(f"  MAE (Mean Absolute Error)      : ${mae_te:,.2f}")
-print(f"  RMSE (Root Mean Squared Error) : ${rmse_te:,.2f}")
+print(f"  R2  : {r2_te:.4f} ({r2_te*100:.2f}%)")
+print(f"  MAE : ${mae_te:,.2f}")
+print(f"  RMSE: ${rmse_te:,.2f}")
 print("=" * 55)""")
 
-    add_md("""### Interpretacao do $R^2$ para a Imobiliaria
-O valor de **$R^2 = 0.8232$** indica que **82.32% de toda a variacao dos precos dos imoveis** no mercado residencial analisado e perfeitamente capturada e explicada de forma linear pelo conjunto de caracteristicas do imovel (qualidade, metragem privativa, vagas de garagem e idade da construcao). 
+    add_md("""### O que o R² de 0,823 significa para a imobiliária?
+O modelo explica **cerca de 82% da variação dos preços** dos imóveis de teste usando apenas 10 características. Na prática, ele separa bem casas baratas de caras e acerta a faixa de preço, mas ainda erra em média US\\$ 21,9 mil por imóvel. Os 18% restantes vêm de informações que ficaram fora do modelo (o dataset tem mais de 70 outras colunas), de relações que não são lineares e de fatores que não estão na base, como a negociação entre comprador e vendedor.""")
 
-Para a operacao de negocios da imobiliaria, isso traduz alta consistencia: mais de quatro quintos da formacao de precos e previsivel e aderente a atributos tecnicos objetivos, restando menos de 18% para variacoes estocasticas, dinamica especulativa ou fatores subjetivos de negociacao individual.""")
-
-    add_code("""# Modelo Otimizado com Regularizacao Ridge e Variaveis de Bairro
+    add_code("""# Ridge com variaveis de bairro (primeira melhoria)
 cols_bairros = [c for c in df_house_encoded.columns if c.startswith('Neighborhood_')]
 features_ampliadas = features_base + cols_bairros + ['LotArea', 'YearRemodAdd', 'Fireplaces']
 
@@ -254,139 +231,152 @@ y_pred_ridge = reg_ridge.predict(X_te_a)
 r2_ridge = r2_score(y_te_a, y_pred_ridge)
 mae_ridge = mean_absolute_error(y_te_a, y_pred_ridge)
 
-print(f"Modelo Refinado (Ridge + Bairros): R2 = {r2_ridge:.4f} | MAE = ${mae_ridge:,.2f}")
-print(f"Reducao no MAE obtida para a competicao: ${mae_te - mae_ridge:,.2f}")""")
+print(f"Ridge + bairros: R2 = {r2_ridge:.4f} | MAE = ${mae_ridge:,.2f}")
+print(f"Reducao no MAE em relacao ao baseline: ${mae_te - mae_ridge:,.2f}")""")
 
-    add_code("""# Graficos de Avaliacao de Residuos e Dispersao Real vs Predito
+    add_code("""# Graficos: valores reais vs previstos e residuos do baseline
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
-# Real vs Previsto
 axes[0].scatter(y_te, y_pred_te, alpha=0.6, color='#1f77b4', edgecolors='k', s=45)
 lims = [min(y_te.min(), y_pred_te.min()), max(y_te.max(), y_pred_te.max())]
-axes[0].plot(lims, lims, color='red', linestyle='--', linewidth=2, label='Predicao Perfeita (y = x)')
-axes[0].set_title("Valores Reais vs Previstos (Baseline) - R2 = {:.4f} | MAE = ${:,.0f}".format(r2_te, mae_te), fontsize=12, fontweight='bold')
-axes[0].set_xlabel("Preco de Venda Real ($)", fontsize=11)
-axes[0].set_ylabel("Preco de Venda Previsto ($)", fontsize=11)
+axes[0].plot(lims, lims, color='red', linestyle='--', linewidth=2, label='Previsão perfeita (y = x)')
+axes[0].set_title("Valores reais vs previstos (baseline) — R² = {:.4f} | MAE = US$ {:,.0f}".format(r2_te, mae_te), fontsize=12, fontweight='bold')
+axes[0].set_xlabel("Preço de venda real (US$)", fontsize=11)
+axes[0].set_ylabel("Preço de venda previsto (US$)", fontsize=11)
 axes[0].xaxis.set_major_formatter('${x:,.0f}')
 axes[0].yaxis.set_major_formatter('${x:,.0f}')
 axes[0].legend(frameon=True)
 
-# Residuos vs Previsto
 residuos = y_te - y_pred_te
 axes[1].scatter(y_pred_te, residuos, alpha=0.6, color='#2ca02c', edgecolors='k', s=45)
 axes[1].axhline(0, color='red', linestyle='--', linewidth=2)
-axes[1].set_title("Distribuicao de Residuos (Erro = Real - Previsto)", fontsize=12, fontweight='bold')
-axes[1].set_xlabel("Preco de Venda Previsto ($)", fontsize=11)
-axes[1].set_ylabel("Residuo ($)", fontsize=11)
+axes[1].set_title("Resíduos (erro = real − previsto)", fontsize=12, fontweight='bold')
+axes[1].set_xlabel("Preço de venda previsto (US$)", fontsize=11)
+axes[1].set_ylabel("Resíduo (US$)", fontsize=11)
 axes[1].xaxis.set_major_formatter('${x:,.0f}')
 axes[1].yaxis.set_major_formatter('${x:,.0f}')
 
 plt.tight_layout()
 plt.show()""")
 
+    add_md("""### 1.5 Modelo da competição
+Para os 5 imóveis secretos, o professor liberou modelos prontos com ajuste fino. O script `scripts/problema1_boosting.py` usa todas as colunas, prevê o log do preço e ajusta os hiperparâmetros de uma Ridge e de um Gradient Boosting com validação cruzada; a média dos dois é o modelo da competição. Também testamos o fine-tuning de um LLM (Qwen3-0.6B + LoRA no LlamaFactory), em `problema1_llm/`. Os detalhes estão em `RELATORIO_PROBLEMA1_COMPETICAO.md`.
+
+A célula abaixo lê os resultados salvos por esses scripts (todos medidos nos mesmos 291 imóveis de teste):""")
+
+    add_code("""# Resultados salvos por scripts/problema1_boosting.py e problema1_llm/avaliar_llm.py
+with open('outputs/p1_resultados_competicao.json', encoding='utf-8') as f:
+    resultados_p1 = json.load(f)['resultados_teste']
+if os.path.exists('outputs/p1_resultados_llm.json'):
+    with open('outputs/p1_resultados_llm.json', encoding='utf-8') as f:
+        llm = json.load(f)
+    resultados_p1['LLM Qwen3-0.6B + LoRA'] = {'MAE': llm['MAE'], 'R2': llm['R2']}
+
+print(f"{'Modelo':35s} {'MAE no teste':>14s} {'R2':>8s}")
+for nome, r in sorted(resultados_p1.items(), key=lambda item: item[1]['MAE']):
+    print(f"{nome:35s} {'$' + format(r['MAE'], ',.0f'):>14s} {r['R2']:8.4f}")
+print("\\nPara prever os imoveis secretos: python scripts/problema1_boosting.py --prever secretos.csv")""")
+
     # --- PROBLEMA 2 ---
     add_md("""---
-## Problema 2: Classificacao - "A Ameaca do Churn"
+## Problema 2: Classificação — "A Ameaça do Churn"
 
-### Contexto de Negocio
-Uma operadora de telecomunicacoes enfrenta perda acelerada de clientes para concorrentes. O objetivo e prever precocemente quais clientes estao em rota iminente de evasao (`Churn`), acionando campanhas preventivas de retencao.
+Uma operadora de telecomunicações quer prever quais clientes vão cancelar para oferecer descontos antes.
 
-### 2.1 Compreensao do Negocio e Analise da Variavel Alvo
-Identificamos a variavel dependente: `Churn` (Yes = Cancelou, No = Permanece Ativo).""")
+### 2.1 Variável alvo e desbalanceamento
+A variável alvo é **`Churn`** (`Yes` = cancelou, `No` = continua).""")
 
-    add_code("""# Carga do dataset de Telecom Churn
+    add_code("""# Carga do dataset de churn
 caminho_p2 = '4-bloco-Machine Learing/TRABALHO AV1/Problema 2/WA_Fn-UseC_-Telco-Customer-Churn.csv'
 df_churn = pd.read_csv(caminho_p2)
 print(f"Dataset carregado: {df_churn.shape[0]} clientes e {df_churn.shape[1]} colunas.")
 
-# Distribuicao de Churn
 cont_churn = df_churn['Churn'].value_counts()
 prop_churn = df_churn['Churn'].value_counts(normalize=True) * 100
 
-print("\\nDistribuicao de Frequencias da Variavel Churn:")
+print("\\nDistribuicao da variavel Churn:")
 print(f"  Ficaram (No)    : {cont_churn['No']} ({prop_churn['No']:.2f}%)")
 print(f"  Cancelaram (Yes): {cont_churn['Yes']} ({prop_churn['Yes']:.2f}%)")
-print(f"  Grau de Desbalanceamento: ~{cont_churn['No']/cont_churn['Yes']:.2f}:1")""")
+print(f"  Proporcao: ~{cont_churn['No']/cont_churn['Yes']:.2f} clientes que ficam para cada 1 que sai")""")
 
-    add_code("""# Visualizacao da Distribuicao da Classe Alvo
+    add_code("""# Grafico da distribuicao da classe alvo
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 cores_churn = ['#2b5c8f', '#d95f02']
 
 sns.barplot(x=cont_churn.index, y=cont_churn.values, palette=cores_churn, ax=axes[0], hue=cont_churn.index, legend=False)
-axes[0].set_title("Distribuicao Absoluta de Clientes", fontsize=12, fontweight='bold')
-axes[0].set_xlabel("Cancelou o Servico (Churn)", fontsize=11)
+axes[0].set_title("Quantidade de clientes", fontsize=12, fontweight='bold')
+axes[0].set_xlabel("Cancelou o serviço (Churn)", fontsize=11)
 axes[0].set_ylabel("Quantidade", fontsize=11)
 for p in axes[0].patches:
     h = p.get_height()
     pct = h / len(df_churn) * 100
-    axes[0].annotate(str(int(h)) + "\\n(" + "{:.1f}%".format(pct) + ")", 
+    axes[0].annotate(str(int(h)) + "\\n(" + "{:.1f}%".format(pct) + ")",
                      (p.get_x() + p.get_width() / 2., h / 2),
                      ha='center', va='center', color='white', fontweight='bold', fontsize=12)
 
-axes[1].pie(cont_churn.values, labels=['Retidos (No)', 'Cancelados (Yes)'], autopct='%1.1f%%',
+axes[1].pie(cont_churn.values, labels=['Ficaram (No)', 'Cancelaram (Yes)'], autopct='%1.1f%%',
             colors=cores_churn, explode=(0, 0.08), startangle=90, textprops={'fontsize': 12, 'fontweight': 'bold'})
-axes[1].set_title("Proporcao Relativa da Evasao", fontsize=12, fontweight='bold')
+axes[1].set_title("Proporção de cancelamentos", fontsize=12, fontweight='bold')
 
-plt.suptitle("Diagnostico de Desbalanceamento da Variavel Churn", fontsize=14, fontweight='bold', y=1.02)
+plt.suptitle("Desbalanceamento da variável Churn", fontsize=14, fontweight='bold', y=1.02)
 plt.tight_layout()
 plt.show()""")
 
-    add_md("""### Diagnostico de Desbalanceamento
-A base possui **73.46% de clientes fieis** e **26.54% de evasao**. Trata-se de um problema moderadamente desbalanceado (razao aproximada de 2.77 para 1). Em problemas desta natureza, a metrica de **Acuracia** torna-se enviesada (um modelo ingênuo que preve sempre 'No' alcancaria 73.5% de acerto sem detectar nenhum cliente em risco). Portanto, a avaliacao exige **Recall**, **Precision**, **F1-Score** e **ROC-AUC**.""")
+    add_md("""**Sim, o dataset é desbalanceado:** 73,5% ficaram e 26,5% cancelaram (cerca de 2,8 para 1). Por isso a acurácia sozinha engana: um "modelo" que sempre responde "não vai cancelar" acerta 73,5% sem identificar nenhum cancelamento. Avaliamos também **recall**, **precisão**, **F1** e **ROC-AUC**.
 
-    add_md("""### 2.2 Analise de Risco Contratual: Contratos Mensais vs Anuais
-Avaliamos a taxa de evasao condicionada a cada modalidade contratual (`Contract`).""")
+### 2.2 Análise de risco: tipo de contrato""")
 
-    add_code("""# Tabela cruzada entre Contract e Churn
+    add_code("""# Taxa de churn por tipo de contrato
 ct_pct = pd.crosstab(df_churn['Contract'], df_churn['Churn'], normalize='index') * 100
 ct_abs = pd.crosstab(df_churn['Contract'], df_churn['Churn'])
 
-print("Taxas de Evasao por Modalidade de Contrato:")
+print("Taxa de churn por tipo de contrato:")
 for c_tipo in ['Month-to-month', 'One year', 'Two year']:
     evad = ct_abs.loc[c_tipo, 'Yes']
     tot = ct_abs.loc[c_tipo].sum()
     pct = ct_pct.loc[c_tipo, 'Yes']
-    print(f"  {c_tipo:15s}: {pct:5.2f}% de Churn ({evad}/{tot} clientes)")
+    print(f"  {c_tipo:15s}: {pct:5.2f}% de churn ({evad}/{tot} clientes)")
 
-print(f"\\nFator Multiplicador de Risco: Contratos mensais evadem {ct_pct.loc['Month-to-month', 'Yes']/ct_pct.loc['Two year', 'Yes']:.1f} vezes mais que contratos bianuais.")""")
+print(f"\\nContratos mensais cancelam {ct_pct.loc['Month-to-month', 'Yes']/ct_pct.loc['Two year', 'Yes']:.1f} vezes mais que contratos de 2 anos.")""")
 
-    add_code("""# Visualizacao da Evasao por Tipo de Contrato
+    add_code("""# Grafico do churn por tipo de contrato
 fig, axes = plt.subplots(1, 2, figsize=(15, 5))
 
 ct_pct.plot(kind='bar', stacked=True, color=['#2b5c8f', '#d95f02'], ax=axes[0], width=0.6)
-axes[0].set_title("Proporcao de Retencao vs Churn por Tipo de Contrato", fontsize=12, fontweight='bold')
-axes[0].set_xlabel("Tipo de Contrato", fontsize=11)
+axes[0].set_title("Proporção de clientes que ficam vs cancelam", fontsize=12, fontweight='bold')
+axes[0].set_xlabel("Tipo de contrato", fontsize=11)
 axes[0].set_ylabel("Percentual (%)", fontsize=11)
 axes[0].set_xticklabels(axes[0].get_xticklabels(), rotation=0)
-axes[0].legend(['Nao Cancelou (No)', 'Cancelou (Yes)'], title="Status", loc='upper right')
+axes[0].legend(['Não cancelou (No)', 'Cancelou (Yes)'], title="Status", loc='upper right')
 for c in axes[0].containers:
     axes[0].bar_label(c, fmt='%.1f%%', label_type='center', color='white', fontweight='bold', fontsize=11)
 
 sns.barplot(x=ct_pct['Yes'].index, y=ct_pct['Yes'].values, palette='Reds_r', ax=axes[1], hue=ct_pct['Yes'].index, legend=False)
-axes[1].set_title("Taxa Direta de Evasao (%) por Contrato", fontsize=12, fontweight='bold')
-axes[1].set_xlabel("Tipo de Contrato", fontsize=11)
-axes[1].set_ylabel("Taxa de Churn (%)", fontsize=11)
+axes[1].set_title("Taxa de churn (%) por contrato", fontsize=12, fontweight='bold')
+axes[1].set_xlabel("Tipo de contrato", fontsize=11)
+axes[1].set_ylabel("Taxa de churn (%)", fontsize=11)
 for p in axes[1].patches:
     axes[1].annotate(f"{p.get_height():.2f}%", (p.get_x() + p.get_width() / 2., p.get_height() + 1),
                      ha='center', va='bottom', fontweight='bold', fontsize=11)
 axes[1].set_ylim(0, 50)
 
-plt.suptitle("Analise de Risco: A Elevadissima Vulnerabilidade do Contrato Mensal", fontsize=14, fontweight='bold', y=1.02)
+plt.suptitle("Clientes com contrato mensal cancelam muito mais", fontsize=14, fontweight='bold', y=1.02)
 plt.tight_layout()
 plt.show()""")
 
-    add_md("""### 2.3 Preparacao dos Dados e Tratamento de `TotalCharges`
-A coluna `TotalCharges` originalmente foi importada com tipo `object` (string).
-- Ao analisar os dados, localizamos **11 registros contendo espacos em branco (`' '`)**.
-- Inspecionando o tempo de contrato (`tenure`), constatamos que **todos os 11 registros possuem `tenure == 0`**.
-- **Justificativa de Tratamento:** Tratam-se de clientes recem-contratados no ciclo zero de faturamento, onde nenhuma mensalidade ainda foi completada. A imputacao correta e coerente com as regras de faturamento e `0.0`.
-- Em seguida, removemos a coluna `customerID` (identificador nominal sem capacidade preditiva) e codificamos todas as variaveis categoricas via One-Hot Encoding.""")
+    add_md("""**Clientes com contrato mensal cancelam muito mais:** 42,7%, contra 11,3% no anual e 2,8% no bienal — quase 4 vezes o anual e cerca de 15 vezes o bienal. Quem não tem fidelidade pode sair a qualquer momento, sem multa.
+
+### 2.3 Tratamento da coluna `TotalCharges`
+- A coluna foi lida como texto porque **11 linhas têm só um espaço em branco** no lugar do valor.
+- Os 11 clientes têm `tenure = 0`: acabaram de entrar e ainda não receberam a primeira cobrança.
+- Convertemos a coluna com `pd.to_numeric(..., errors='coerce')` e preenchemos esses valores com **0**, que é o valor real cobrado até agora. Assim os 11 clientes continuam na base.
+- Também removemos `customerID` (só um identificador) e aplicamos One-Hot Encoding nas colunas categóricas.""")
 
     add_code("""# Tratamento da coluna TotalCharges
-linhas_espaco = (df_churn['TotalCharges'].str.strip() == '').sum()
-print(f"Linhas com espacos em branco encontradas: {linhas_espaco}")
+linhas_espaco = df_churn['TotalCharges'].str.strip() == ''
+print(f"Linhas com espacos em branco encontradas: {linhas_espaco.sum()}")
+print(f"tenure dessas linhas: {df_churn.loc[linhas_espaco, 'tenure'].unique().tolist()}")
 
-# Coercao numerica e preenchimento com 0.0
 df_churn['TotalCharges'] = pd.to_numeric(df_churn['TotalCharges'].str.strip(), errors='coerce').fillna(0.0)
 print(f"Tipo final de TotalCharges: {df_churn['TotalCharges'].dtype}")
 
@@ -394,13 +384,12 @@ print(f"Tipo final de TotalCharges: {df_churn['TotalCharges'].dtype}")
 df_churn_model = df_churn.drop(columns=['customerID']).copy()
 df_churn_model['Churn'] = df_churn_model['Churn'].map({'Yes': 1, 'No': 0})
 
-# Codificacao One-Hot
 cat_cols_churn = df_churn_model.select_dtypes(include=['object', 'string']).columns.tolist()
 df_churn_encoded = pd.get_dummies(df_churn_model, columns=cat_cols_churn, drop_first=True, dtype=float)
-print(f"Matriz de atributos final: {df_churn_encoded.shape[1] - 1} preditores.")""")
+print(f"{len(cat_cols_churn)} colunas categoricas convertidas -> {df_churn_encoded.shape[1] - 1} variaveis de entrada.")""")
 
-    add_md("""### 2.4 Treinamento Supervisionado e Matriz de Confusao
-Dividimos os dados em 80% treino e 20% teste com estratificacao (`stratify=y`) para garantir identica proporcao de evasao nos subconjuntos. Aplicamos padronizacao (`StandardScaler`) nas variaveis continuas (`tenure`, `MonthlyCharges`, `TotalCharges`) e treinamos modelos de **Regressao Logistica** e **Random Forest**.""")
+    add_md("""### 2.4 Treino e matriz de confusão
+Divisão 80/20 **estratificada** (`stratify=y`), para manter a proporção de churn nos dois conjuntos. Padronizamos as variáveis contínuas (`tenure`, `MonthlyCharges`, `TotalCharges`) para a Regressão Logística e treinamos também uma Random Forest para comparar.""")
 
     add_code("""# Separacao de X e y
 X_c = df_churn_encoded.drop(columns=['Churn'])
@@ -408,7 +397,7 @@ y_c = df_churn_encoded['Churn']
 
 X_c_tr, X_c_te, y_c_tr, y_c_te = train_test_split(X_c, y_c, test_size=0.20, random_state=SEED, stratify=y_c)
 
-# Escalonamento dos atributos continuos
+# Padronizacao das variaveis continuas (ajustada so no treino)
 cols_num_c = ['tenure', 'MonthlyCharges', 'TotalCharges']
 scaler_c = StandardScaler()
 X_c_tr_sc = X_c_tr.copy()
@@ -416,84 +405,91 @@ X_c_te_sc = X_c_te.copy()
 X_c_tr_sc[cols_num_c] = scaler_c.fit_transform(X_c_tr[cols_num_c])
 X_c_te_sc[cols_num_c] = scaler_c.transform(X_c_te[cols_num_c])
 
-# Treinamento da Regressao Logistica
+# Modelo 1: Regressao Logistica
 clf_lr = LogisticRegression(max_iter=1000, random_state=SEED)
 clf_lr.fit(X_c_tr_sc, y_c_tr)
 y_pred_c_lr = clf_lr.predict(X_c_te_sc)
 y_prob_c_lr = clf_lr.predict_proba(X_c_te_sc)[:, 1]
 
-# Metricas
-acc_lr = accuracy_score(y_c_te, y_pred_c_lr)
-auc_lr = roc_auc_score(y_c_te, y_prob_c_lr)
-print("Relatorio de Classificacao - Regressao Logistica:")
-print(classification_report(y_c_te, y_pred_c_lr, target_names=['Nao Churn', 'Churn'], digits=4))
-print(f"ROC-AUC: {auc_lr:.4f}")""")
+# Modelo 2: Random Forest (arvores nao precisam de padronizacao)
+clf_rf = RandomForestClassifier(n_estimators=150, max_depth=8, random_state=SEED)
+clf_rf.fit(X_c_tr, y_c_tr)
+y_pred_c_rf = clf_rf.predict(X_c_te)
+y_prob_c_rf = clf_rf.predict_proba(X_c_te)[:, 1]
 
-    add_code("""# Matriz de Confusao e Analise de Erros
+print(f"{'Modelo':22s} {'Acuracia':>9s} {'Precisao':>9s} {'Recall':>7s} {'F1':>6s} {'AUC':>6s}")
+for nome, pred, prob in [('Regressao Logistica', y_pred_c_lr, y_prob_c_lr),
+                         ('Random Forest', y_pred_c_rf, y_prob_c_rf)]:
+    print(f"{nome:22s} {accuracy_score(y_c_te, pred):9.4f} {precision_score(y_c_te, pred):9.4f} "
+          f"{recall_score(y_c_te, pred):7.4f} {f1_score(y_c_te, pred):6.4f} {roc_auc_score(y_c_te, prob):6.4f}")""")
+
+    add_code("""# Matriz de confusao da Regressao Logistica
 cm_c_lr = confusion_matrix(y_c_te, y_pred_c_lr)
 tn, fp, fn, tp = cm_c_lr.ravel()
 
 plt.figure(figsize=(7, 5))
 n_tot = len(y_c_te)
-labels_cm = np.array([[f"TN: {tn} (" + "{:.1f}%)".format(tn/n_tot*100), f"FP: {fp} (" + "{:.1f}%)".format(fp/n_tot*100)],
-                      [f"FN: {fn} (" + "{:.1f}%)".format(fn/n_tot*100), f"TP: {tp} (" + "{:.1f}%)".format(tp/n_tot*100)]])
+labels_cm = np.array([[f"VN: {tn} (" + "{:.1f}%)".format(tn/n_tot*100), f"FP: {fp} (" + "{:.1f}%)".format(fp/n_tot*100)],
+                      [f"FN: {fn} (" + "{:.1f}%)".format(fn/n_tot*100), f"VP: {tp} (" + "{:.1f}%)".format(tp/n_tot*100)]])
 sns.heatmap(cm_c_lr, annot=labels_cm, fmt='', cmap='Blues', cbar=False,
-            xticklabels=['Previsto: Fica (0)', 'Previsto: Churn (1)'],
-            yticklabels=['Real: Fica (0)', 'Real: Churn (1)'])
-plt.title("Matriz de Confusao - Regressao Logistica (Teste)", fontsize=13, fontweight='bold', pad=12)
-plt.ylabel("Classe Real", fontsize=11)
-plt.xlabel("Classe Predita", fontsize=11)
+            xticklabels=['Previsto: fica (0)', 'Previsto: cancela (1)'],
+            yticklabels=['Real: fica (0)', 'Real: cancela (1)'])
+plt.title("Matriz de confusão — Regressão Logística (teste)", fontsize=13, fontweight='bold', pad=12)
+plt.ylabel("Classe real", fontsize=11)
+plt.xlabel("Classe prevista", fontsize=11)
 plt.tight_layout()
 plt.show()""")
 
-    add_md("""### 2.5 Trade-off de Negocio: O que e Pior para a Empresa, Falso Positivo ou Falso Negativo?
-No contexto de negocios de uma concessionaria de telecomunicacoes, o erro de **Falso Negativo (FN)** e infinitamente pior e mais prejudicial:
-1. **Falso Negativo (FN = 165 casos):** O modelo prevê que o cliente permanecerá fiel, mas ele na realidade cancela.
-   - *Impacto Financeiro:* Nenhuma acao preventiva e deflagrada; o cliente migra para o concorrente; ha perda integral do fluxo futuro de caixa (**Lifetime Value - LTV**). Conquistar um novo cliente no setor de telecomunicacoes possui um Custo de Aquisicao de Clientes (**CAC**) de 5 a 7 vezes superior ao custo de manter um cliente ativo.
-2. **Falso Positivo (FP = 108 casos):** O modelo prevê que o cliente vai cancelar, mas ele permaneceria normalmente.
-   - *Impacto Financeiro:* O time de marketing oferece um desconto preventivo ou um upgrade de plano temporario. O custo e marginal e controlado, com o efeito colateral positivo de fortalecer a satisfacao e a lealdade do cliente a longo prazo.
+    add_md("""### 2.5 O que é pior: falso positivo ou falso negativo?
+**O falso negativo é pior para esta empresa.**
+- **Falso positivo** (108 clientes): o modelo diz que o cliente vai cancelar, mas ele ia ficar. A empresa dá um desconto que não precisava — um custo limitado e conhecido.
+- **Falso negativo** (165 clientes): o modelo diz que o cliente vai ficar, mas ele cancela. Nenhuma ação é tomada e a empresa **perde toda a receita futura desse cliente**. Além disso, conquistar um cliente novo para repor costuma custar mais caro do que manter um atual.
 
-**Diretriz Estrategica:** A operadora deve priorizar modelos e limiares de decisao com alto **Recall (Sensibilidade)** para a classe de Churn, tolerando um volume moderado de Falsos Positivos para blindar a base ativa.""")
+Por isso vale **baixar o limiar de decisão** (o padrão é 0,50), aceitando mais falsos positivos para perder menos clientes:""")
+
+    add_code("""# Recall x precisao da Regressao Logistica para diferentes limiares de decisao
+print(f"{'Limiar':>7s} {'Recall':>8s} {'Precisao':>9s} {'FP':>5s} {'FN':>5s}")
+for limiar in [0.50, 0.40, 0.35, 0.30, 0.25]:
+    pred_limiar = (y_prob_c_lr >= limiar).astype(int)
+    fp_l = int(((pred_limiar == 1) & (y_c_te == 0)).sum())
+    fn_l = int(((pred_limiar == 0) & (y_c_te == 1)).sum())
+    print(f"{limiar:7.2f} {recall_score(y_c_te, pred_limiar)*100:7.1f}% {precision_score(y_c_te, pred_limiar)*100:8.1f}% {fp_l:5d} {fn_l:5d}")""")
+
+    add_md("""Com limiar **0,30**, o modelo identifica 3 de cada 4 clientes que vão cancelar (recall de 75,7%): são 74 clientes a mais retidos no teste, ao custo de 153 descontos a mais. A escolha final depende do valor do desconto comparado ao valor de um cliente perdido.""")
 
     # --- PROBLEMA 3 ---
     add_md("""---
-# PARTE 2: Aprendizado Nao Supervisionado
+# PARTE 2: Aprendizado Não Supervisionado
 
-## Problema 3: Clusterizacao - "O Perfil do Consumidor"
+## Problema 3: Clusterização — "O Perfil do Consumidor"
 
-### Contexto de Negocio
-O time de marketing de um grande shopping center deseja segmentar sua base de clientes sem rotulos pre-definidos, identificando grupos homogeneos de comportamento a partir de sua renda anual e pontuacao de compras.
+O marketing de um shopping quer agrupar os clientes por renda anual e pontuação de gastos, sem rótulos prévios.
 
-### 3.1 Justificativa Matematica do Escalonamento
-Em algoritmos baseados em distancias no espaco vetorial (como o K-Means), os centroides minimizam a soma dos quadrados das distancias euclidianas:
-
-$$J = \\sum_{k=1}^K \\sum_{x_i \\in C_k} \\|x_i - \\mu_k\\|^2 = \\sum_{k=1}^K \\sum_{x_i \\in C_k} \\sum_{j=1}^p (x_{ij} - \\mu_{kj})^2$$
-
-Se uma variavel possui ordem de grandeza expressivamente maior que outra (ex: Renda de $15.000 a $137.000 vs Idade de 18 a 70 ou Spending Score de 1 a 100), o termo quadratico $(\\Delta x_1)^2$ atinge grandezas desproporcionais ($10^6$ a $10^8$), suprimindo completamente a contribuicao das demais dimensoes.
-- **Solucao Aplicada:** Padronizacao Z-score via `StandardScaler`, convertendo cada variavel para media zero e desvio-padrao unitario ($z = \\frac{x - \\mu}{\\sigma}$), garantindo isometria no espaco euclidiano.""")
+### 3.1 Escalonamento
+O K-Means agrupa pela **distância euclidiana**, então uma variável com valores muito maiores domina a distância e a outra quase não conta. Antes de decidir, conferimos as escalas:""")
 
     add_code("""# Carga do dataset Mall Customers
 caminho_p3 = '4-bloco-Machine Learing/TRABALHO AV1/Problema 3/Mall_Customers.csv'
 df_mall = pd.read_csv(caminho_p3)
 print(f"Dataset carregado: {df_mall.shape[0]} clientes e {df_mall.shape[1]} colunas.")
 
-# Selecao dos atributos especificados no enunciado
 features_mall = ['Annual Income (k$)', 'Spending Score (1-100)']
 X_mall = df_mall[features_mall].copy()
+print(X_mall.describe().T[['min', 'max', 'std']].round(2).to_string())
 
-# Padronizacao com StandardScaler
+# Padronizacao: media 0 e desvio padrao 1 para as duas variaveis
 scaler_mall = StandardScaler()
 X_mall_scaled = scaler_mall.fit_transform(X_mall)
-print("Escalonamento StandardScaler aplicado com sucesso.")""")
+print("\\nStandardScaler aplicado.")""")
 
-    add_md("""### 3.2 O Dilema da Quantidade: Metodo do Cotovelo e Coeficiente de Silhueta
-Executamos o K-Means variando $K$ de 1 a 10 e calculamos:
-1. **WCSS (Within-Cluster Sum of Squares) / Inercia:** Mede a dispersao interna dos clusters.
-2. **Silhouette Score:** Mede a coesao interna vs separabilidade externa:
+    add_md("""**Neste dataset, as escalas já são parecidas:** a renda está em milhares (15 a 137, desvio padrão 26,3) e a pontuação vai de 1 a 99 (desvio padrão 25,8). Se a renda estivesse em reais (30.000 a 150.000), ela dominaria a distância.
 
-$$s(i) = \\frac{b(i) - a(i)}{\\max(a(i), b(i))}$$""")
+Mesmo assim, aplicamos o **`StandardScaler`** (`z = (x − média) ÷ desvio padrão`) como boa prática: as duas variáveis ficam com média 0 e desvio padrão 1, e garantimos que nenhuma pese mais que a outra.
 
-    add_code("""# Calculo de WCSS e Silhouette para K de 1 a 10
+### 3.2 Quantidade de clusters: Método do Cotovelo
+Treinamos o K-Means com K de 1 a 10 e registramos a **inércia** (soma das distâncias de cada cliente ao centro do seu grupo). Como apoio, calculamos o **coeficiente de silhueta** (quanto mais perto de 1, mais separados os grupos).""")
+
+    add_code("""# Inercia e silhueta para K de 1 a 10
 inercia_lista = []
 silhuetas_lista = []
 k_valores = list(range(1, 11))
@@ -505,53 +501,55 @@ for k in k_valores:
     if k >= 2:
         silhuetas_lista.append(silhouette_score(X_mall_scaled, km.labels_))
 
-# Visualizacao conjunta do Cotovelo e Silhueta
+for k in k_valores:
+    silh = f"{silhuetas_lista[k-2]:.4f}" if k >= 2 else "  -   "
+    print(f"K = {k:2d} | Inercia = {inercia_lista[k-1]:7.2f} | Silhueta = {silh}")
+
 fig, axes = plt.subplots(1, 2, figsize=(15, 5))
 
-# Cotovelo
 axes[0].plot(k_valores, inercia_lista, marker='o', linewidth=2.5, color='#1f77b4', markersize=8)
-axes[0].axvline(5, color='red', linestyle='--', linewidth=1.5, label='K = 5 (Inflexao)')
+axes[0].axvline(5, color='red', linestyle='--', linewidth=1.5, label='K = 5 (cotovelo)')
 axes[0].scatter(5, inercia_lista[4], color='red', s=120, zorder=5)
-axes[0].set_title("Metodo do Cotovelo (Elbow Method) - WCSS", fontsize=12, fontweight='bold')
-axes[0].set_xlabel("Numero de Clusters (K)", fontsize=11)
-axes[0].set_ylabel("Inercia (WCSS)", fontsize=11)
+axes[0].set_title("Método do Cotovelo — inércia", fontsize=12, fontweight='bold')
+axes[0].set_xlabel("Número de clusters (K)", fontsize=11)
+axes[0].set_ylabel("Inércia", fontsize=11)
 axes[0].set_xticks(k_valores)
 axes[0].legend(frameon=True)
 
-# Coeficiente de Silhueta
 axes[1].plot(range(2, 11), silhuetas_lista, marker='s', linewidth=2.5, color='#2ca02c', markersize=8)
-axes[1].axvline(5, color='red', linestyle='--', linewidth=1.5, label='K = 5 (Pico = 0.555)')
+axes[1].axvline(5, color='red', linestyle='--', linewidth=1.5, label='K = 5 (pico = 0,555)')
 axes[1].scatter(5, silhuetas_lista[3], color='red', s=120, zorder=5)
-axes[1].set_title("Coeficiente de Silhueta Medio por K", fontsize=12, fontweight='bold')
-axes[1].set_xlabel("Numero de Clusters (K)", fontsize=11)
-axes[1].set_ylabel("Silhouette Score", fontsize=11)
+axes[1].set_title("Coeficiente de silhueta por K", fontsize=12, fontweight='bold')
+axes[1].set_xlabel("Número de clusters (K)", fontsize=11)
+axes[1].set_ylabel("Silhueta média", fontsize=11)
 axes[1].set_xticks(range(2, 11))
 axes[1].legend(frameon=True)
 
-plt.suptitle("Determinacao Matematica do Numero Ideal de Segmentos (K = 5)", fontsize=14, fontweight='bold', y=1.02)
+plt.suptitle("Escolha do número de clusters (K = 5)", fontsize=14, fontweight='bold', y=1.02)
 plt.tight_layout()
 plt.show()""")
 
-    add_md("""### Justificativa da Escolha de $K = 5$:
-1. A curva do Cotovelo demonstra uma reducao drastica na inercia de $K=1$ ate $K=5$, apos o qual a inclinacao estabiliza com ganhos marginais diminutos.
-2. O Coeficiente de Silhueta atinge seu **pico maximo global em $K = 5$ com score de $0.5547$**, atestando maxima coesao interna e separacao geometrica dos clusters.""")
+    add_md("""**Escolhemos K = 5.** Até K = 5, cada cluster a mais reduz bastante a inércia (de 108,9 para 65,6 ao passar de 4 para 5). Depois disso, o ganho fica pequeno (de 65,6 para 55,1 ao passar para 6) — é o "cotovelo" da curva. A silhueta confirma: é maior em K = 5 (0,555).
 
-    add_code("""# Treinamento com K = 5 e Recuperacao dos Centroides
+### 3.3 Treino e visualização""")
+
+    add_code("""# K-Means final com K = 5
 km_final = KMeans(n_clusters=5, init='k-means++', random_state=SEED, n_init=15)
 df_mall['Cluster'] = km_final.fit_predict(X_mall_scaled)
 
-centroides_sc = km_final.cluster_centers_
-centroides_orig = scaler_mall.inverse_transform(centroides_sc)
+centroides_orig = scaler_mall.inverse_transform(km_final.cluster_centers_)
+resumo_mall = pd.DataFrame(centroides_orig, columns=['Renda media (k$)', 'Gasto medio (1-100)']).round(1)
+resumo_mall['Clientes'] = df_mall['Cluster'].value_counts().sort_index()
+print(resumo_mall.to_string())
 
-# Visualizacao 2D dos Clusters com Centroides
 plt.figure(figsize=(11, 7))
 cores_mall = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']
 nomes_clusters = {
-    0: "Cluster 0: Moderados / Padrao (Media Renda, Medio Gasto)",
-    1: "Cluster 1: Clientes VIP (Alta Renda, Alto Gasto)",
-    2: "Cluster 2: Jovens Impulsivos (Baixa Renda, Alto Gasto)",
-    3: "Cluster 3: Poupadores Cautelosos (Alta Renda, Baixo Gasto)",
-    4: "Cluster 4: Consumidores Economicos (Baixa Renda, Baixo Gasto)"
+    0: "Cluster 0: Clientes Padrão (renda média, gasto médio)",
+    1: "Cluster 1: Clientes VIP (renda alta, gasto alto)",
+    2: "Cluster 2: Jovens Impulsivos (renda baixa, gasto alto)",
+    3: "Cluster 3: Poupadores Cautelosos (renda alta, gasto baixo)",
+    4: "Cluster 4: Consumidores Econômicos (renda baixa, gasto baixo)"
 }
 
 for c_id in range(5):
@@ -564,133 +562,146 @@ plt.scatter(centroides_orig[:, 0], centroides_orig[:, 1],
             s=250, c='black', marker='X', edgecolors='gold', linewidth=2.5,
             label='Centroides', zorder=10)
 
-plt.title("Segmentacao de Clientes do Shopping Center (K-Means, K = 5)", fontsize=13, fontweight='bold', pad=15)
-plt.xlabel("Renda Anual (Annual Income em k$)", fontsize=11)
-plt.ylabel("Pontuacao de Gastos (Spending Score de 1 a 100)", fontsize=11)
+plt.title("Segmentação de clientes do shopping (K-Means, K = 5)", fontsize=13, fontweight='bold', pad=15)
+plt.xlabel("Renda anual (k$)", fontsize=11)
+plt.ylabel("Pontuação de gastos (1 a 100)", fontsize=11)
 plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', frameon=True)
 plt.tight_layout()
 plt.show()""")
 
-    add_md("""### 3.4 Interpretacao de Negocios dos 5 Perfis Comerciais
-A partir dos centroides matematicos em escala original, definimos os rotulos de negocio e planos de acao:
+    add_md("""### 3.4 Interpretação de negócio: nomes dos grupos
 
-| Cluster | Renda Media | Score Gasto | Rotulo Comercial | Estrategia de Marketing Recomendada |
-| :---: | :---: | :---: | :--- | :--- |
-| **0** | $55.3k | 49.5 | **Consumidores Moderados / Padrao** | Campanhas de lealdade continua, promocoes sazonais (Natal, Dia das Maes) e cartao fidelidade convencional. |
-| **1** | $86.5k | 82.1 | **Clientes VIP / Alto Padrao** | Atendimento personalizado (concierge), lancamentos de grifes de luxo, eventos exclusivos e estacionamento VIP. |
-| **2** | $25.7k | 79.4 | **Jovens Impulsivos / Entusiastas** | Facilidade de crediario, microcredito, promocoes relampago em redes sociais e vestuario fast-fashion. |
-| **3** | $88.2k | 17.1 | **Poupadores Cautelosos / Racionais** | Comunicacao orientada a qualidade, durabilidade, tecnologia de ponta e investimentos de alto valor agregado. |
-| **4** | $26.3k | 20.9 | **Consumidores Economicos / Conscientes** | Cupons de desconto por volume, promocoes no estilo 'leve 3 pague 2' e foco estrito em custo-beneficio. |""")
+| Cluster | Perfil | Nome comercial | Ação de marketing |
+| :---: | --- | --- | --- |
+| 1 | Renda alta, gasto alto | **Clientes VIP** | Lançamentos exclusivos, eventos fechados, atendimento personalizado |
+| 2 | Renda baixa, gasto alto | **Jovens Impulsivos** | Parcelamento, cartão da loja, promoções relâmpago nas redes sociais |
+| 0 | Renda média, gasto médio | **Clientes Padrão** | Programa de pontos, campanhas de datas comemorativas |
+| 3 | Renda alta, gasto baixo | **Poupadores Cautelosos** | Destacar qualidade, durabilidade e garantia |
+| 4 | Renda baixa, gasto baixo | **Consumidores Econômicos** | Cupons, liquidações e ofertas de custo-benefício |
+
+O grupo mais interessante é o dos **Poupadores Cautelosos**: têm tanto dinheiro quanto os VIPs, mas gastam pouco no shopping.""")
 
     # --- PROBLEMA 4 ---
     add_md("""---
-## Problema 4: Clusterizacao Musical - "Criando a Playlist Perfeita"
+## Problema 4: Clusterização Musical — "Criando a Playlist Perfeita"
 
-### Contexto de Negocio
-Um aplicativo de streaming musical contratou a squad para gerar 5 playlists automaticas ("vibes") baseadas estritamente nas propriedades acusticas das faixas, sem utilizar generos pre-cadastrados.
+Um app de streaming quer 5 playlists automáticas baseadas só nas propriedades acústicas das músicas, sem usar o gênero.
 
-### 4.1 Limpeza e Filtragem de Metadados Textuais
-- **Colunas Identificadas:** `track_id`, `artists`, `album_name`, `track_name`, `track_genre`.
-- **Justificativa Matematica:** Distancias metricas euclidianas operam sobre variedades continuas em $\\mathbb{R}^d$. Textos sao variaveis categoricas nominais sem ordem e sem metrica espacial. Qualquer codificacao artificial arbitraria criaria proximidades espurias sem correspondencia com a fisica das ondas sonoras.
-- **Acao:** Os metadados textuais foram desacoplados em tabela de consulta (`lookup`), preservando apenas atributos continuos no vetor de agrupamento.""")
+### 4.1 Limpeza e filtragem
+**As colunas de texto ajudam a calcular distâncias? Não.** `track_id`, `artists`, `album_name`, `track_name` e `track_genre` são nomes e códigos: não existe distância entre "Coldplay" e "Metallica", e numerar os artistas (1, 2, 3…) faria o algoritmo achar que o artista 101 é "parecido" com o 102.
 
-    add_code("""# Carga do dataset de faixas musicais do Spotify
+O que fizemos:
+1. Retiramos as colunas de texto do treino, mas as mantivemos na tabela para consultar os nomes depois. O gênero só é usado no final, para conferir os grupos.
+2. Removemos as **duplicatas de `track_id`**: a mesma música aparece uma vez para cada gênero em que foi cadastrada, e pesaria em dobro.
+3. Usamos 9 atributos acústicos numéricos, padronizados com `StandardScaler`.
+4. Deixamos de fora `key` (tom) e `mode`: são códigos de categoria (0 = Dó, 1 = Dó#, …), e a distância entre os números não tem sentido musical.""")
+
+    add_code("""# Carga do dataset do Spotify
 caminho_p4 = '4-bloco-Machine Learing/TRABALHO AV1/Problema 4/dataset.csv'
 df_spotify = pd.read_csv(caminho_p4)
-print(f"Dataset carregado: {df_spotify.shape[0]} faixas e {df_spotify.shape[1]} colunas.")
+print(f"Dataset carregado: {df_spotify.shape[0]} linhas e {df_spotify.shape[1]} colunas.")
 
-# Atributos acusticos continuos
+# Atributos acusticos usados no agrupamento (sem texto, sem key/mode)
 features_musica = [
-    'danceability', 'energy', 'loudness', 'speechiness', 
+    'danceability', 'energy', 'loudness', 'speechiness',
     'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo'
 ]
 
-# Filtragem de nulos nas features
 df_sp_clean = df_spotify.dropna(subset=features_musica + ['track_name']).copy()
-print(f"Faixas acusticamente validas: {len(df_sp_clean)}")""")
+df_sp_clean = df_sp_clean.drop_duplicates(subset='track_id')
+print(f"Faixas unicas apos remover nulos e duplicatas: {len(df_sp_clean)}")""")
 
-    add_md("""### 4.2 Analise da Correlacao Acustica: `energy` vs `acousticness`
-Calculamos o coeficiente linear de Pearson entre energia e acustica.""")
+    add_md("""### 4.2 Correlação entre `energy` e `acousticness`""")
 
     add_code("""# Correlacao de Pearson
 r_ea = df_sp_clean['energy'].corr(df_sp_clean['acousticness'])
-print(f"Coeficiente de Correlacao Linear (Energy vs Acousticness): r = {r_ea:.4f}")""")
+print(f"Correlacao (energy vs acousticness): r = {r_ea:.4f}")""")
 
-    add_code("""# Visualizacao da Relacao Inversa entre Energy e Acousticness
+    add_code("""# Grafico da relacao entre energy e acousticness
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
-# Scatter com amostra representativa
 amostra_sp = df_sp_clean.sample(n=5000, random_state=SEED)
 sns.regplot(data=amostra_sp, x='energy', y='acousticness', ax=axes[0],
             scatter_kws={'alpha': 0.25, 'color': '#1f77b4', 's': 15},
             line_kws={'color': '#d62728', 'linewidth': 2.5})
-axes[0].set_title(f"Dispersao: Energy vs Acousticness\\nPearson r = {r_ea:.4f} (Forte Negativa)", fontsize=12, fontweight='bold')
+axes[0].set_title(f"Energy vs acousticness (amostra de 5.000)\\nr = {r_ea:.4f} (forte negativa)", fontsize=12, fontweight='bold')
 axes[0].set_xlabel("Energy (0 a 1)", fontsize=11)
 axes[0].set_ylabel("Acousticness (0 a 1)", fontsize=11)
 
-# Heatmap das propriedades acusticas
 sns.heatmap(df_sp_clean[features_musica].corr(), annot=True, fmt=".2f", cmap='coolwarm', vmin=-1, vmax=1, ax=axes[1], cbar_kws={'label': 'Pearson r'})
-axes[1].set_title("Matriz de Correlacao entre Propriedades Acusticas", fontsize=12, fontweight='bold')
+axes[1].set_title("Correlação entre as propriedades acústicas", fontsize=12, fontweight='bold')
 
-plt.suptitle("Analise Fisica e Estatistica de Propriedades Acusticas do Spotify", fontsize=14, fontweight='bold', y=1.02)
 plt.tight_layout()
 plt.show()""")
 
-    add_md("""### Explicacao Fisica e Musical da Correlacao Inversa ($r = -0.7339$)
-1. **Energy (Energia):** Mensura a densidade de informacao espectral, amplitude de compressao dinamica e intensidade eletrica amplificada (comum em generos sintetizados, rock e EDM).
-2. **Acousticness (Acustica):** Mede a probabilidade de a faixa ter sido gravada predominantemente por geradores mecanicos organicos de som (voz pura sem autotune, cordas orquestrais, piano acustico, percussao manual), que possuem envelope dinâmico com decaimento natural e menor ganho de compressao.
-3. **Conclusao:** Sao polos fisicamente excludentes na engenharia de som. Quanto mais instrumentos acusticos puros dominam a gravacao, menor e a saturacao e o ganho eletrico perceptivel.""")
+    add_md("""**Sim, há uma correlação negativa forte (r ≈ −0,73).** Músicas mais acústicas (violão, piano, voz sem efeitos) tendem a ser mais calmas, e músicas com muita energia (rock pesado, eletrônica) quase sempre usam instrumentos elétricos, sintetizadores e volume alto. É raro uma música ser ao mesmo tempo muito acústica e muito agitada — mas existem exceções (um forró pé de serra pode ser acústico e animado), por isso a correlação é forte, mas não perfeita.
 
-    add_md("""### 4.3 Treinamento do K-Means (5 Playlists) e a Prova de Fogo""")
+### 4.3 Treino: K-Means com 5 clusters""")
 
-    add_code("""# Normalizacao dos atributos continuos
+    add_code("""# Padronizacao e K-Means com K = 5
 scaler_sp = StandardScaler()
 X_sp_scaled = scaler_sp.fit_transform(df_sp_clean[features_musica])
 
-# Treinamento do K-Means com K = 5
 km_sp = KMeans(n_clusters=5, init='k-means++', random_state=SEED, n_init=10)
 df_sp_clean['cluster'] = km_sp.fit_predict(X_sp_scaled)
 
-# Centroides originais
-centroides_sp_orig = scaler_sp.inverse_transform(km_sp.cluster_centers_)
-df_centroides_sp = pd.DataFrame(centroides_sp_orig, columns=features_musica)
-print("Centroides dos 5 Clusters Acusticos (Escala Original):")
-df_centroides_sp[['energy', 'acousticness', 'danceability', 'loudness', 'valence', 'tempo']]""")
+# Media de cada atributo por cluster (escala original)
+perfil_sp = df_sp_clean.groupby('cluster')[features_musica].mean().round(2)
+perfil_sp['faixas'] = df_sp_clean['cluster'].value_counts().sort_index()
+print(perfil_sp.to_string())""")
 
-    add_code("""# A Prova de Fogo: Inspecao Qualitativa Humana de 5 Musicas
-# Localizamos o cluster com maior indice de acousticness (Cluster 2)
-id_cluster_acustico = df_centroides_sp['acousticness'].idxmax()
-amostra_cluster = df_sp_clean[df_sp_clean['cluster'] == id_cluster_acustico].sample(n=5, random_state=SEED)
+    add_md("""Cada cluster recebe o nome do atributo em que mais se destaca (maior centroide padronizado), sem repetir nomes. Depois, conferimos os gêneros mais comuns de cada grupo — lembrando que o gênero **não** foi usado no treino:""")
 
-print(f"Cluster Selecionado: Cluster {id_cluster_acustico} (Playlist Acustica / Calmaria)")
+    add_code("""# Nome de cada playlist: atributo em que o cluster mais se destaca, sem repetir
+nomes_por_feature = {
+    'speechiness': "Falado & Stand-up",
+    'instrumentalness': "Calmaria Instrumental",
+    'acousticness': "Acústico com Voz",
+    'energy': "Pesado & Adrenalina",
+    'danceability': "Festa & Dança",
+}
+centroides_z = pd.DataFrame(km_sp.cluster_centers_, columns=features_musica)
+pares = centroides_z[list(nomes_por_feature)].stack().sort_values(ascending=False)
+nomes_playlists = {}
+for (c_id, feature), _ in pares.items():
+    if c_id not in nomes_playlists and nomes_por_feature[feature] not in nomes_playlists.values():
+        nomes_playlists[c_id] = nomes_por_feature[feature]
+
+for c_id in sorted(nomes_playlists):
+    generos = df_sp_clean.loc[df_sp_clean['cluster'] == c_id, 'track_genre'].value_counts().head(4)
+    print(f"Cluster {c_id} - {nomes_playlists[c_id]:22s} | generos mais comuns: {', '.join(generos.index)}")""")
+
+    add_md("""Os grupos batem com o que se espera de cada estilo: o algoritmo separou metal, música dançante, música acústica cantada, música para relaxar e até áudios de comédia, olhando só para os números do som.
+
+### 4.4 A prova de fogo
+Escolhemos o cluster **Calmaria Instrumental** e sorteamos 5 músicas entre as mais populares dele (popularidade ≥ 70), para que pudéssemos conhecer as faixas:""")
+
+    add_code("""# 5 musicas do cluster 'Calmaria Instrumental', sorteadas entre as populares
+id_calmaria = next(c for c, n in nomes_playlists.items() if n == "Calmaria Instrumental")
+populares = df_sp_clean[(df_sp_clean['cluster'] == id_calmaria) & (df_sp_clean['popularity'] >= 70)]
+amostra_cluster = populares.sample(n=5, random_state=SEED)
+
+print(f"Cluster {id_calmaria} - Calmaria Instrumental ({len(populares)} faixas populares)")
 print("=" * 70)
 for i, (_, row) in enumerate(amostra_cluster.iterrows(), 1):
-    print(f"{i}. Artista: {row['artists']:25s} | Faixa: '{row['track_name']}'")
-    print(f"   Album: '{row['album_name']}'")
-    print(f"   [Acousticness: {row['acousticness']:.3f} | Energy: {row['energy']:.3f} | Danceability: {row['danceability']:.3f} | Tempo: {row['tempo']:.1f} BPM]\\n")
+    print(f"{i}. {row['artists']} - '{row['track_name']}' (genero cadastrado: {row['track_genre']})")
+    print(f"   [Acousticness: {row['acousticness']:.2f} | Instrumentalness: {row['instrumentalness']:.2f} | "
+          f"Energy: {row['energy']:.2f} | Loudness: {row['loudness']:.1f} dB]")
 print("=" * 70)""")
 
-    add_md("""### Analise Qualitativa Humana ("A Prova de Fogo")
-A inspecao humana das faixas agrupadas valida com perfeicao a coesao sonora do algoritmo:
-1. **Faixas Selecionadas:**
-   - *Wes Montgomery - 'Days Of Wine And Roses':* Classico do jazz de guitarra acustica pura com ambiencia relaxante.
-   - *Benny Martin; The Wong Janice - 'Hallelujah - Piano & Cello':* Interpretacao instrumental profunda de piano e violoncelo sem nenhuma intervencao eletrica.
-   - *Moomu - 'Cloudology' & Ochre - 'Rising Tide':* Composicoes calmas de andamento lento e timbres organicos.
-   - *White Noise for Babies - 'Starlights':* Faixa acustica suave voltada a meditacao e sono.
-2. **Coesao Auditiva:** Todas as faixas compartilham **Acousticness superior a 0.65**, **Energy abaixo de 0.25** e andamento moderado/lento. Um ouvinte que busca concentracao, estudo ou repouso tera uma experiencia perfeitamente harmonica e sem quebras abruptas de ritmo ou volume.""")
+    add_md("""**Faz sentido estarem na mesma playlist? Sim, para uma playlist de relaxar, estudar ou dormir.** As cinco são muito acústicas, têm energia quase zero e volume baixo. *River Flows In You* (Yiruma, piano solo) e as duas faixas de "sleep" são instrumentais e tranquilas; as músicas de Bon Iver e Clairo, mesmo tendo voz, são sussurradas e minimalistas, no mesmo clima.
+
+O agrupamento juntou músicas de 4 gêneros cadastrados diferentes (folk, indie-pop, sleep, classical) pelo **clima** do som, que era o objetivo. A ressalva: as faixas de "sleep" são mais um som de fundo do que músicas para ouvir com atenção, então quem ouvisse a playlist notaria a diferença entre elas e as canções.""")
 
     add_md("""---
-## Sintese Executiva dos Resultados e Metricas
+## Resumo dos resultados
 
-| Problema | Algoritmo | Principais Variaveis | Metricas Obtidas | Impacto no Negocio |
-| :--- | :--- | :--- | :--- | :--- |
-| **1. Precificacao de Imoveis** | Regressao Linear / Ridge | `OverallQual`, `GrLivArea`, `GarageCars`, `Neighborhood` | $R^2 = 82.32\\%$ (Base) / $84.85\\%$ (Ridge), $\\text{MAE} = \\$19,245$ | Mais de 84% do valor venal e explicavel por dados objetivos, reduzindo risco de avaliacoes equivocadas. |
-| **2. Previsao de Churn** | Regressao Logistica / Random Forest | `Contract`, `tenure`, `MonthlyCharges`, `TotalCharges` | $\\text{ROC-AUC} = 0.8422$, $\\text{Acuracia} = 80.62\\%$, $\\text{Recall Churn} = 55.88\\%$ | Falso Negativo priorizado: custo de perder cliente e ate 7x maior que custo de ofertar incentivo. |
-| **3. Segmentacao de Clientes** | K-Means ($K=5$) com StandardScaler | `Annual Income`, `Spending Score` | $\\text{Silhouette Score} = 0.5547$, $\\text{WCSS} = 65.57$ | Definicao de 5 personas comerciais com estrategias dedicadas (VIP, Poupadores, Moderados, Jovens, Economicos). |
-| **4. Playlists Spotify** | K-Means ($K=5$) sobre 9 features acusticas | `energy`, `acousticness`, `danceability`, `tempo`, etc. | Correlacao $r = -0.7339$, 5 playlists com assinatura sonora distinta | Playlists homogeneas baseadas estritamente no timbre e fisica do som, sem contaminacao de genero textual. |
-
----
-**Fim do Notebook.** Todos os modelos foram treinados com sucesso e documentados com precisao matematica e estatistica.""")
+| Problema | Algoritmo | Principais resultados |
+| --- | --- | --- |
+| **1. O Preço Justo** | Regressão Linear; Ridge + Gradient Boosting (competição) | R² baseline = 0,823; modelo da competição com MAE = US\\$ 11.773 |
+| **2. A Ameaça do Churn** | Regressão Logística e Random Forest | ROC-AUC = 0,842; recall do churn de 55,9% (75,7% com limiar 0,30) |
+| **3. O Perfil do Consumidor** | K-Means (K = 5) | Silhueta = 0,555; 5 perfis de cliente |
+| **4. A Playlist Perfeita** | K-Means (K = 5) | r(energy, acousticness) = −0,73; 5 playlists coerentes com os gêneros |""")
 
     notebook_dict = {
         "cells": cells,
@@ -712,7 +723,7 @@ A inspecao humana das faixas agrupadas valida com perfeicao a coesao sonora do a
     caminho_nb = 'Trabalho_Pratico_AV1_ML.ipynb'
     with open(caminho_nb, 'w', encoding='utf-8') as f:
         json.dump(notebook_dict, f, indent=2, ensure_ascii=False)
-        
+
     print(f"Jupyter Notebook criado com sucesso em: {caminho_nb}")
     print(f"Total de celulas geradas: {len(cells)}")
 
