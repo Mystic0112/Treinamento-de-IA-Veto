@@ -16,6 +16,8 @@ Resolução dos quatro problemas do Trabalho Prático AV1 (Trilha de Machine Lea
 - `Trabalho_Pratico_AV1_ML.ipynb` — notebook com todos os problemas
 - `outputs/` — gráficos gerados e relatório em `.docx`
 - `RELATORIO_TRABALHO_AV1_ML.md` — relatório em Markdown
+- `RELATORIO_PROBLEMA1_COMPETICAO.md` — modelo da competição do Problema 1 e experimento de fine-tuning de LLM
+- `problema1_llm/` — dataset e configurações do LlamaFactory para o experimento com LLM
 
 ## Como rodar
 

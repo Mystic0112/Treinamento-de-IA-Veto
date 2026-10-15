@@ -1,0 +1,9 @@
+{
+  "modelo": "Qwen3-0.6B + LoRA",
+  "MAE": 30757.31615120275,
+  "R2": 0.5604958895376366,
+  "mediana_erro": 20500.0,
+  "maior_erro": 260000.0,
+  "respostas_validas": 291,
+  "total": 291
+}
