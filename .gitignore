@@ -1,0 +1,20 @@
+# Material do professor (slides, PDFs e enunciado) fica fora do repo publico
+4-bloco-Machine Learing/*.pdf
+4-bloco-Machine Learing/*.pptx
+4-bloco-Machine Learing/TRABALHO AV1/*.docx
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Ambiente e segredos
+.env
+.env.*
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
